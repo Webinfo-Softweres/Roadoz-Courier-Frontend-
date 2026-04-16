@@ -8,11 +8,9 @@ export default function TransactionManager() {
     const [view, setView] = useState("list");
     const [selectedStaff, setSelectedStaff] = useState(null);
 
-    // States for Permission Viewer
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [viewingStaff, setViewingStaff] = useState(null);
 
-    // Mock Data (ensure 'permissions' array exists)
     const [staffList] = useState([
         {
             id: 1,
@@ -39,7 +37,6 @@ export default function TransactionManager() {
         setView("form");
     };
 
-    // Function to handle the Eye Button Click
     const handleViewPermissions = (staff) => {
         setViewingStaff(staff);
         setIsViewModalOpen(true);
