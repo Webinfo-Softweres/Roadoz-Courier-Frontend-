@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Login } from "./pages/Login";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { Profile } from "./pages/Profile";
@@ -17,7 +17,6 @@ import { Tickets } from "./pages/Tickets";
 import { Reports } from "./pages/Reports";
 import { ChangePassword } from "./pages/ChangePassword";
 import { PickupAddress } from "./pages/PickupAddress";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { NotFound } from "./pages/NotFound";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { GeneralDetails } from "./pages/GeneralDetails";
@@ -30,18 +29,40 @@ import { Users } from "./pages/admin/Users";
 import { Franchise } from "./pages/Franchise";
 import StaffRegistration from "./pages/StaffRegistration";
 import FranchiseWizard from "./components/common/FranchiseWizard";
-
+import { ProtectedRoute } from "./components/common/ProtectedRoute";
 
 export default function App() {
+  const isAuth = localStorage.getItem("isAuth");
+
   return (
     <ThemeProvider>
       <Router>
         <Routes>
-          <Route path="/login" element={<Login />} />
+
+          <Route
+            path="/"
+            element={
+              isAuth ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              isAuth ? <Navigate to="/dashboard" replace /> : <Login />
+            }
+          />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/" element={<DashboardLayout />}>
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<Dashboard />} />
+
             <Route path="new-orders" element={<NewOrder />} />
             <Route path="processing-order" element={<ProcessingOrders />} />
             <Route path="all-orders" element={<ProcessingOrders />} />
@@ -56,8 +77,7 @@ export default function App() {
             <Route path="lost" element={<ProcessingOrders />} />
             <Route path="cancelled" element={<ProcessingOrders />} />
             <Route path="returned" element={<ProcessingOrders />} />
-            <Route path="returned" element={<ProcessingOrders />} />
-            <Route path="cancelled" element={<ProcessingOrders />} />
+
             <Route path="serviceable-pincode" element={<ServiceablePincode />} />
             <Route path="rate-calculator" element={<RateCalculator />} />
             <Route path="channel-integration" element={<ChannelIntegration />} />
@@ -67,22 +87,28 @@ export default function App() {
             <Route path="consignees" element={<Consignees />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="reports" element={<Reports />} />
+
             <Route path="settings/general" element={<GeneralDetails />} />
             <Route path="settings/password" element={<ChangePassword />} />
             <Route path="settings/pickup" element={<PickupAddress />} />
             <Route path="settings/rto" element={<RTOAddress />} />
             <Route path="settings/label" element={<LabelSetting />} />
             <Route path="settings/kyc" element={<KYC />} />
-            <Route path="/admin/modules" element={<Permissions/>} />
-            <Route path="/admin/roles" element={<Roles/>} />
-            <Route path="/admin/users" element={<Users/>} />
-            <Route path="/franchise" element={<Franchise/>} />
-            <Route path="/franchise/add-staff" element={<StaffRegistration />} />
-            <Route path="/franchise/edit-staff/:id" element={<StaffRegistration />} />
-            <Route path="/franchise/add" element={<FranchiseWizard />} />
-            <Route path="/franchise/edit/:id" element={<FranchiseWizard />} />
+
+            <Route path="admin/modules" element={<Permissions />} />
+            <Route path="admin/roles" element={<Roles />} />
+            <Route path="admin/users" element={<Users />} />
+
+            <Route path="franchise" element={<Franchise />} />
+            <Route path="franchise/add-staff" element={<StaffRegistration />} />
+            <Route path="franchise/edit-staff/:id" element={<StaffRegistration />} />
+            <Route path="franchise/add" element={<FranchiseWizard />} />
+            <Route path="franchise/edit/:id" element={<FranchiseWizard />} />
           </Route>
+
+          <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
+
         </Routes>
       </Router>
     </ThemeProvider>

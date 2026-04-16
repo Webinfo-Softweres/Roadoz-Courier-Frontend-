@@ -3,16 +3,16 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Mail, ArrowLeft, Hash, ShieldCheck } from "lucide-react";
 import Logo from "../assets/images/Roadoz Golden hd.png";
 import { Button } from "../components/ui/button";
-import { motion, AnimatePresence } from "framer-motion"; 
+import { motion, AnimatePresence } from "framer-motion";
 
 export function Login() {
   const navigate = useNavigate();
-  
-  
-  const [step, setStep] = useState(1); 
+
+
+  const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     email: "testuser@gmail.com",
     password: "password123",
@@ -27,11 +27,12 @@ export function Login() {
     e.preventDefault();
     setLoading(true);
 
-    
+
     setTimeout(() => {
       setLoading(false);
       if (formData.email === "admin@roadoz.com") {
-        navigate("/");
+        localStorage.setItem("isAuth", "true");
+        navigate("/dashboard");
       } else {
         setStep(2);
       }
@@ -44,7 +45,8 @@ export function Login() {
 
     setTimeout(() => {
       setLoading(false);
-      navigate("/"); 
+      localStorage.setItem("isAuth", "true");
+      navigate("/dashboard");
     }, 1000);
   };
 
@@ -60,7 +62,7 @@ export function Login() {
       <div className="w-full max-w-[450px] bg-card-bg rounded-2xl border border-border-subtle shadow-2xl overflow-hidden relative">
         <AnimatePresence mode="wait">
           {step === 1 ? (
-            <motion.div 
+            <motion.div
               key="step1"
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -117,15 +119,15 @@ export function Login() {
               </form>
             </motion.div>
           ) : (
-            <motion.div 
+            <motion.div
               key="step2"
               initial={{ x: 20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 20, opacity: 0 }}
               className="p-8 md:p-10"
             >
-              <button 
-                onClick={() => setStep(1)} 
+              <button
+                onClick={() => setStep(1)}
                 className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-widest mb-6 hover:opacity-80 transition-opacity"
               >
                 <ArrowLeft size={16} /> Back to login
