@@ -1,5 +1,6 @@
 import axios from "axios";
 import Cookies from "js-cookie";
+import { jwtDecode } from "jwt-decode"; 
 import { ENDPOINTS } from "./endpoints";
 
 const BASE_URL =
@@ -13,29 +14,35 @@ const API = axios.create({
   },
 });
 
+
+const isTokenExpired = (token) => {
+  try {
+    const decoded = jwtDecode(token);
+    const currentTime = Date.now() / 1000; 
+    return decoded.exp < currentTime;
+  } catch (err) {
+    return true; 
+  }
+};
+
 API.interceptors.request.use((config) => {
   const token = Cookies.get("access_token");
+
   if (token) {
+    if (isTokenExpired(token)) {
+      console.warn("Token expired. Logging out...");
+
+      Cookies.remove("access_token");
+      window.location.href = "/login";
+
+      return Promise.reject("Token expired");
+    }
+
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
-
-API.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      console.warn("Unauthorized session. Clearing credentials and redirecting...");
-            Cookies.remove("access_token");
-      window.location.href = "/login";
-    }
-        return Promise.reject(error);
-  }
-);
-
-
 
 export const loginApi = async (data) => {
   const res = await API.post(ENDPOINTS.LOGIN, data);
