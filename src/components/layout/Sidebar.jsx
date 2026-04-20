@@ -11,7 +11,7 @@ import { NavLink } from "../NavLink";
 import { cn } from "../../lib/utils";
 import logo from "../../assets/images/Roadoz Golden hd.png";
 import { logoutUser } from "../../redux/authSlice";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
 
@@ -101,13 +101,15 @@ export function Sidebar({ isOpen, setIsOpen }) {
   };
 
   const handleLogout = async () => {
+    const loadingToast = toast.loading("Logging out...");
     try {
       const response = await dispatch(logoutUser()).unwrap();
-      toast.success(response.message || "Logged out successfully");
+
+      toast.success(response.message || "Logged out successfully", { id: loadingToast });
 
       navigate("/login");
     } catch (error) {
-      toast.error("Logged out with server error");
+      toast.error("Logged out with server error", { id: loadingToast });
       navigate("/login");
     }
   };
