@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Cookies from "js-cookie";
+import { Toaster } from "react-hot-toast";
 
 import { Login } from "./pages/Login";
 import { ForgotPassword } from "./pages/ForgotPassword";
@@ -38,6 +39,10 @@ export default function App() {
 
   return (
     <ThemeProvider>
+       <Toaster
+        position="top-right"
+        reverseOrder={false}
+      />
       <Router>
         <Routes>
 
