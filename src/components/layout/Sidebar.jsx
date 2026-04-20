@@ -1,21 +1,27 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import Cookies from "js-cookie";
-
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList, Wrench,
   CircleDollarSign, Users, Ticket, FileText, Settings,
   ChevronDown, ChevronUp, LogOut, X, ShieldCheck, Store
 } from "lucide-react";
-
+import { useDispatch } from "react-redux";
 import { NavLink } from "../NavLink";
 import { cn } from "../../lib/utils";
 import logo from "../../assets/images/Roadoz Golden hd.png";
+import { logoutUser } from "../../redux/authSlice";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+
 
 export function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
 
   const base = "/dashboard";
+
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const [openMenus, setOpenMenus] = useState({
     orders: false,
@@ -94,9 +100,16 @@ export function Sidebar({ isOpen, setIsOpen }) {
     }));
   };
 
-  const handleLogout = () => {
-    Cookies.remove("access_token");
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    try {
+      const response = await dispatch(logoutUser()).unwrap();
+      toast.success(response.message || "Logged out successfully");
+
+      navigate("/login");
+    } catch (error) {
+      toast.error("Logged out with server error");
+      navigate("/login");
+    }
   };
 
   const NavDropdown = ({ id, label, icon: Icon, items }) => (
@@ -176,7 +189,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 space-y-1 custom-scrollbar">
-        <NavLink to={base} end  icon={<LayoutDashboard size={20} />} hideText={!isOpen}>
+        <NavLink to={base} end icon={<LayoutDashboard size={20} />} hideText={!isOpen}>
           Dashboard
         </NavLink>
 

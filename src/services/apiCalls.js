@@ -47,6 +47,11 @@ export const loginApi = async (data) => {
   return res.data;
 };
 
+export const logoutApi = async () => {
+  const res = await API.post(ENDPOINTS.LOGOUT);
+  return res.data;
+};
+
 export const getProfileApi = async () => {
   const res = await API.get(ENDPOINTS.PROFILE);
   return res.data;

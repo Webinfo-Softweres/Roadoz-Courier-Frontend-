@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { loginApi } from "../services/apiCalls";
+import { loginApi, logoutApi } from "../services/apiCalls";
 import Cookies from "js-cookie";
 
 export const loginUser = createAsyncThunk(
@@ -11,7 +11,22 @@ export const loginUser = createAsyncThunk(
       Cookies.set("role", data.role, { expires: 7 });
       return data;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.response?.data || "Login failed");
+    }
+  }
+);
+
+export const logoutUser = createAsyncThunk(
+  "auth/logoutUser",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await logoutApi();
+      return response; 
+    } catch (error) {
+      return rejectWithValue(error.response?.data || "Logout failed");
+    } finally {
+      Cookies.remove("access_token");
+      Cookies.remove("role");
     }
   }
 );
@@ -49,6 +64,22 @@ const authSlice = createSlice({
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+
+      .addCase(logoutUser.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(logoutUser.fulfilled, (state) => {
+        state.loading = false;
+        state.user = null;
+        state.role = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(logoutUser.rejected, (state) => {
+        state.loading = false;
+        state.user = null;
+        state.role = null;
+        state.isAuthenticated = false;
       });
   },
 });
