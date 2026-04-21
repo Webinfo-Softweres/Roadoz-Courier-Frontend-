@@ -14,7 +14,7 @@ import {
 import Logo from "../assets/images/Roadoz Golden hd.png";
 import { Button } from "../components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { loginUser } from "../redux/authSlice";
+import { checkUserRole, loginUser } from "../redux/authSlice";
 
 export function Login() {
   const navigate = useNavigate();
@@ -35,10 +35,6 @@ export function Login() {
 
   const [loginError, setLoginError] = useState("");
 
-  // const handleInputChange = (e) => {
-  //   setFormData({ ...formData, [e.target.name]: e.target.value });
-  // };
-
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setLoginError("");
@@ -46,65 +42,100 @@ export function Login() {
 
   // const handleFirstStep = async (e) => {
   //   e.preventDefault();
+  //   setLoginError("");
 
-  //   const payload = {
-  //     email: formData.email,
-  //     password: formData.password
-  //   };
-
-  //   const resultAction = await dispatch(loginUser(payload));
+  //   const resultAction = await dispatch(
+  //     loginUser({
+  //       email: formData.email,
+  //       password: formData.password,
+  //     }),
+  //   );
 
   //   if (loginUser.fulfilled.match(resultAction)) {
-  //     const userRole = resultAction.payload.role;
+  //     const role = resultAction.payload?.role;
 
-  //     if (userRole === "super_admin") {
+  //     if (role === "super_admin") {
   //       navigate("/dashboard");
-  //     } else {
+  //     } else if (role?.toLowerCase() === "franchise") {
   //       setStep(2);
   //     }
+  //   } else {
+  //     const message =
+  //       resultAction?.payload?.detail || resultAction?.error?.message || "";
+
+  //     // Treat this as flow, not error
+  //     if (message.toLowerCase().includes("franchise")) {
+  //       setStep(2);
+  //       return;
+  //     }
+
+  //     setLoginError(message || "Login failed");
   //   }
   // };
 
   const handleFirstStep = async (e) => {
     e.preventDefault();
+    setLoginError("");
 
-    setLoginError(""); // clear previous error
+    // ✅ Step 1: check role via Redux
+    const roleResult = await dispatch(checkUserRole(formData.email));
 
-    try {
-      const resultAction = await dispatch(
+    if (checkUserRole.fulfilled.match(roleResult)) {
+      const { role, requires_franchise_code } = roleResult.payload;
+
+      // ✅ Franchise → go to step 2
+      if (requires_franchise_code || role === "franchise") {
+        setStep(2);
+        return;
+      }
+
+      // ✅ Admin → login
+      const loginResult = await dispatch(
         loginUser({
           email: formData.email,
           password: formData.password,
         }),
       );
 
-      if (loginUser.fulfilled.match(resultAction)) {
-        const userRole = resultAction.payload?.role;
-
-        if (userRole === "super_admin") {
-          navigate("/dashboard");
-        } else {
-          setStep(2);
-        }
+      if (loginUser.fulfilled.match(loginResult)) {
+        navigate("/dashboard");
       } else {
-        // ✅ handle backend error safely
         const message =
-          resultAction?.payload?.detail ||
-          resultAction?.error?.message ||
+          loginResult?.payload?.detail ||
+          loginResult?.error?.message ||
           "Login failed";
 
         setLoginError(message);
       }
-    } catch (err) {
-      console.error(err);
-      setLoginError("Something went wrong. Try again.");
+    } else {
+      setLoginError("Unable to verify user");
     }
   };
 
-  const handleFinalStep = (e) => {
+  const handleFinalStep = async (e) => {
     e.preventDefault();
-    if (formData.franchiseCode.length > 3) {
-      navigate("/dashboard");
+
+    try {
+      const resultAction = await dispatch(
+        loginUser({
+          email: formData.email,
+          password: formData.password,
+          franchise_code: formData.franchiseCode, // IMPORTANT
+        }),
+      );
+
+      if (loginUser.fulfilled.match(resultAction)) {
+        navigate("/dashboard");
+      } else {
+        const message =
+          resultAction?.payload?.detail ||
+          resultAction?.error?.message ||
+          "Invalid franchise code";
+
+        setLoginError(message);
+      }
+    } catch (err) {
+      setLoginError("Something went wrong.");
     }
   };
 

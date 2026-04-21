@@ -17,7 +17,7 @@ export default function ChangePasswordModal({ onClose, onSuccess }) {
     confirm_password: "",
   });
 
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+  // const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
 
   const validatePassword = (password) => {
     const errors = [];
@@ -107,7 +107,7 @@ export default function ChangePasswordModal({ onClose, onSuccess }) {
           }
         }
 
-        // 🔥 sync confirm password
+        // sync confirm password
         if (form.confirm_password) {
           if (value !== form.confirm_password) {
             newErrors.confirm_password = "Passwords do not match";
@@ -157,7 +157,7 @@ export default function ChangePasswordModal({ onClose, onSuccess }) {
 
       // Success
       toast.dismiss(loadingToast);
-      toast.success("OTP sent successfully 🚀");
+      toast.success("OTP sent successfully");
 
       onSuccess(form.new_password);
     } catch (err) {

@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { loginApi, logoutApi } from "../services/apiCalls";
+import { loginApi, logoutApi, checkRoleApi } from "../services/apiCalls";
 import Cookies from "js-cookie";
 
 export const loginUser = createAsyncThunk(
@@ -7,13 +7,27 @@ export const loginUser = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const data = await loginApi(userData);
+      // console.log("LOGIN RESPONSE:", data);
       Cookies.set("access_token", data.access_token, { expires: 7 });
+      // console.log("COOKIE AFTER SET:", Cookies.get("access_token"));
       Cookies.set("role", data.role, { expires: 7 });
       return data;
     } catch (error) {
       return rejectWithValue(error.response?.data || "Login failed");
     }
-  }
+  },
+);
+
+export const checkUserRole = createAsyncThunk(
+  "auth/checkUserRole",
+  async (email, { rejectWithValue }) => {
+    try {
+      const data = await checkRoleApi(email);
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || "Role check failed");
+    }
+  },
 );
 
 export const logoutUser = createAsyncThunk(
@@ -21,14 +35,14 @@ export const logoutUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await logoutApi();
-      return response; 
+      return response;
     } catch (error) {
       return rejectWithValue(error.response?.data || "Logout failed");
     } finally {
       Cookies.remove("access_token");
       Cookies.remove("role");
     }
-  }
+  },
 );
 
 const authSlice = createSlice({
@@ -39,6 +53,8 @@ const authSlice = createSlice({
     loading: false,
     error: null,
     isAuthenticated: !!Cookies.get("access_token"),
+    roleCheckLoading: false,
+    roleCheckData: null,
   },
   reducers: {
     logout: (state) => {
@@ -80,6 +96,17 @@ const authSlice = createSlice({
         state.user = null;
         state.role = null;
         state.isAuthenticated = false;
+      })
+      .addCase(checkUserRole.pending, (state) => {
+        state.roleCheckLoading = true;
+      })
+      .addCase(checkUserRole.fulfilled, (state, action) => {
+        state.roleCheckLoading = false;
+        state.roleCheckData = action.payload;
+      })
+      .addCase(checkUserRole.rejected, (state, action) => {
+        state.roleCheckLoading = false;
+        state.error = action.payload;
       });
   },
 });

@@ -1,33 +1,104 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import {
   getProfileApi,
-  getProfileImageApi,
+  // getProfileImageApi,
   updateProfileApi,
   uploadProfileImageApi,
   changePasswordRequestApi,
   changePasswordVerifyApi,
 } from "../services/apiCalls";
 
+// export const fetchProfile = createAsyncThunk(
+//   "profile/fetch",
+//   async (_, { rejectWithValue }) => {
+//     try {
+//       const [profileData, imageData] = await Promise.all([
+//         getProfileApi(),
+//         getProfileImageApi(),
+//       ]);
+
+//       return {
+//         ...profileData,
+//         profile_image: imageData?.profile_image || profileData.profile_image,
+//       };
+//     } catch (error) {
+//       return rejectWithValue(
+//         error.response?.data?.message || "Failed to fetch profile",
+//       );
+//     }
+//   },
+// );
+
+// export const fetchProfile = createAsyncThunk(
+//   "profile/fetch",
+//   async (_, { rejectWithValue }) => {
+//     try {
+//       const profileData = await getProfileApi();
+
+//       let imageData = null;
+
+//       try {
+//         imageData = await getProfileImageApi();
+//       } catch (err) {
+//         // ignore 404 error (no image)
+//         console.warn("No profile image found");
+//       }
+
+//       return {
+//         ...profileData,
+//         profile_image:
+//           imageData?.profile_image || profileData.profile_image || null,
+//       };
+//     } catch (error) {
+//       return rejectWithValue(
+//         error.response?.data?.message || "Failed to fetch profile",
+//       );
+//     }
+//   },
+// );
+
 export const fetchProfile = createAsyncThunk(
   "profile/fetch",
   async (_, { rejectWithValue }) => {
     try {
-      const [profileData, imageData] = await Promise.all([
-        getProfileApi(),
-        getProfileImageApi(),
-      ]);
-
-      return {
-        ...profileData,
-        profile_image: imageData?.profile_image || profileData.profile_image,
-      };
+      const profileData = await getProfileApi();
+      return profileData;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch profile",
+        error.response?.data?.message || "Failed to fetch profile"
       );
     }
-  },
+  }
 );
+
+// export const fetchProfile = createAsyncThunk(
+//   "profile/fetch",
+//   async (_, { rejectWithValue }) => {
+//     try {
+//       const profileData = await getProfileApi();
+
+//       let imageData = null;
+
+//       // Only call if backend says image exists
+//       if (profileData.has_profile_image) {
+//         try {
+//           imageData = await getProfileImageApi();
+//         } catch (err) {
+//           // silently ignore
+//         }
+//       }
+
+//       return {
+//         ...profileData,
+//         profile_image: imageData?.profile_image || null,
+//       };
+//     } catch (error) {
+//       return rejectWithValue(
+//         error.response?.data?.message || "Failed to fetch profile",
+//       );
+//     }
+//   },
+// );
 
 export const updateProfile = createAsyncThunk(
   "profile/update",

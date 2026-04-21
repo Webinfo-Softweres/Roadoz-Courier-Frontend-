@@ -42,6 +42,11 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
+export const checkRoleApi = async (email) => {
+  const res = await API.post(ENDPOINTS.CHECK_ROLE, { email });
+  return res.data;
+};
+
 export const loginApi = async (data) => {
   const res = await API.post(ENDPOINTS.LOGIN, data);
   return res.data;
@@ -57,10 +62,10 @@ export const getProfileApi = async () => {
   return res.data;
 };
 
-export const getProfileImageApi = async () => {
-  const res = await API.get(ENDPOINTS.PROFILE_IMAGE);
-  return res.data;
-};
+// export const getProfileImageApi = async () => {
+//   const res = await API.get(ENDPOINTS.PROFILE_IMAGE);
+//   return res.data;
+// };
 
 export const updateProfileApi = async (data) => {
   const res = await API.put(ENDPOINTS.PROFILE, data);

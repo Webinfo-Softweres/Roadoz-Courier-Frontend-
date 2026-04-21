@@ -65,10 +65,55 @@ export function Header({ toggleSidebar }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // const PLACEHOLDER_IMAGE =
+  //   "https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff";
+
+  const PLACEHOLDER_IMAGE = `https://ui-avatars.com/api/?name=${
+    user?.name || "User"
+  }&background=0D8ABC&color=fff`;
+
+  // const getProfileImageUrl = () => {
+  //   if (!user?.profile_image) return PLACEHOLDER_IMAGE;
+
+  //   // If already full URL
+  //   if (user.profile_image.startsWith("http")) {
+  //     return user.profile_image;
+  //   }
+
+  //   // Only allow valid image paths (avoid hitting wrong API routes)
+  //   if (user.profile_image.startsWith("/uploads")) {
+  //     return `${IMAGE_BASE_URL}${user.profile_image}`;
+  //   }
+
+  //   // fallback if something unexpected
+  //   return PLACEHOLDER_IMAGE;
+  // };
+
+  // const getProfileImageUrl = () => {
+  //   if (!user?.profile_image) return null;
+  //   if (user.profile_image.startsWith("http")) return user.profile_image;
+  //   return `${IMAGE_BASE_URL}${user.profile_image}`;
+  // };
+
   const getProfileImageUrl = () => {
-    if (!user?.profile_image) return null;
-    if (user.profile_image.startsWith("http")) return user.profile_image;
-    return `${IMAGE_BASE_URL}${user.profile_image}`;
+    const img = user?.profile_image;
+
+    // No image
+    if (!img) return PLACEHOLDER_IMAGE;
+
+    // API endpoint (wrong usage like /api/v1/profile/image)
+    if (img.includes("/api/")) return PLACEHOLDER_IMAGE;
+
+    // Full URL
+    if (img.startsWith("http")) return img;
+
+    // Valid uploaded image
+    if (img.startsWith("/uploads")) {
+      return `${IMAGE_BASE_URL}${img}`;
+    }
+
+    // fallback
+    return PLACEHOLDER_IMAGE;
   };
 
   const quickActions = [
@@ -202,6 +247,10 @@ export function Header({ toggleSidebar }) {
                     alt="User Avatar"
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null; // 🛑 prevents infinite loop
+                      e.currentTarget.src = PLACEHOLDER_IMAGE;
+                    }}
                   />
                 ) : (
                   <User size={16} className="text-primary" />

@@ -104,19 +104,58 @@ export function Profile() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const getFinalImageUrl = () => {
-    const path = user?.profile_image;
-    console.log("yyyyyyyyyyyyyy", path);
+  // const getFinalImageUrl = () => {
+  //   const path = user?.profile_image;
+  //   console.log("yyyyyyyyyyyyyy", path);
 
-    if (!path) return null;
+  //   if (!path) return null;
 
-    if (path.startsWith("http")) return path;
+  //   if (path.startsWith("http")) return path;
 
-    if (path.startsWith("/uploads")) {
-      return `${IMAGE_SERVER_URL}${path}`;
+  //   if (path.startsWith("/uploads")) {
+  //     return `${IMAGE_SERVER_URL}${path}`;
+  //   }
+
+  //   return `${IMAGE_SERVER_URL}/${path}`;
+  // };
+
+  // const PLACEHOLDER_IMAGE = `https://ui-avatars.com/api/?name=${
+  //   user?.name || "User"
+  // }&background=0D8ABC&color=fff`;
+
+  // const getFinalImageUrl = () => {
+  //   const path = user?.profile_image;
+
+  //   // ❌ No image
+  //   if (!path) return PLACEHOLDER_IMAGE;
+
+  //   // 🚨 BLOCK API endpoints (THIS IS YOUR MAIN ISSUE)
+  //   if (path.includes("/api/")) return PLACEHOLDER_IMAGE;
+
+  //   // ✅ Full URL
+  //   if (path.startsWith("http")) return path;
+
+  //   // ✅ Valid uploaded image
+  //   if (path.startsWith("/uploads")) {
+  //     return `${IMAGE_SERVER_URL}${path}`;
+  //   }
+
+  //   // ❌ Anything else → fallback
+  //   return PLACEHOLDER_IMAGE;
+  // };
+
+  const PLACEHOLDER_IMAGE = `https://ui-avatars.com/api/?name=${
+    user?.name || "User"
+  }`;
+
+  const getImage = () => {
+    const img = user?.profile_image;
+
+    if (!img || img.includes("/api/")) {
+      return PLACEHOLDER_IMAGE;
     }
 
-    return `${IMAGE_SERVER_URL}/${path}`;
+    return `http://api.roadozcourier.com${img}`;
   };
 
   if (loading && !user)
@@ -157,20 +196,45 @@ export function Profile() {
                     </div>
                   )}
 
-                  {getFinalImageUrl() ? (
+                  {/* {getFinalImageUrl() ? (
+                    // <img
+                    //   src={getFinalImageUrl()}
+                    //   alt="User Profile"
+                    //   className="w-full h-full object-cover"
+                    //   key={user.profile_image}
+                    //   onError={(e) => {
+                    //     e.target.onerror = null;
+                    //     e.target.src = "";
+                    //   }}
+                    // />
+                    // <img
+                    //   src={getFinalImageUrl()}
+                    //   alt="User Profile"
+                    //   className="w-full h-full object-cover"
+                    //   key={user.profile_image}
+                    //   onError={(e) => {
+                    //     e.currentTarget.onerror = null;
+                    //     e.currentTarget.src = PLACEHOLDER_IMAGE;
+                    //   }}
+                    // />
                     <img
-                      src={getFinalImageUrl()}
-                      alt="User Profile"
-                      className="w-full h-full object-cover"
-                      key={user.profile_image}
+                      src={getImage()}
+                      alt="User"
                       onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "";
+                        e.currentTarget.src = PLACEHOLDER_IMAGE;
                       }}
                     />
                   ) : (
                     <User size={64} className="text-primary opacity-40" />
-                  )}
+                  )} */}
+                  <img
+                    src={getImage()}
+                    alt="User Profile"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = PLACEHOLDER_IMAGE;
+                    }}
+                  />
                 </div>
 
                 <input
