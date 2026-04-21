@@ -1,5 +1,6 @@
 export const ENDPOINTS = {
   LOGIN: "/auth/login",
+  CHECK_ROLE:"/auth/role",
   LOGOUT: "/auth/logout",
   PROFILE: "/profile",
   UPLOAD_IMAGE: "/profile/upload-image",
