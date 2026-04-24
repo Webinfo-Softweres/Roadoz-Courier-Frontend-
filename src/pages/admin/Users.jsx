@@ -1,135 +1,321 @@
-import React, { useState } from "react";
-import { Card, CardContent } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
-// import { BackButton } from "../../components/ui/BackButton";
-import { Plus, Edit, Trash2, Search, Mail, Shield, X, User } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { cn } from "../../lib/utils";
+import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { 
+  Plus, Search, Edit, Trash2, MapPin, Phone, Mail, 
+  ToggleRight, ToggleLeft, Calendar, Filter, RotateCcw, 
+  Download, User, Loader2, X, Lock, Shield, Settings, AlertCircle
+} from "lucide-react";
+import { toast } from "react-hot-toast";
+import { motion, AnimatePresence } from "motion/react";
+
+import { Button } from "../../components/ui/button";
+import { Card, CardContent } from "../../components/ui/card";
+import { swalConfirmDelete, swalSuccess, swalError } from "../../lib/swal";
+import { cn } from "../../lib/utils";
+import { getUsers, addUser, editUser, removeUser } from "../../redux/userSlice";
+import Pagination from "../../components/ui/Pagination";
 
 export function Users() {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const users = [
-        { id: 1, name: "John Doe", email: "john@roadoz.com", role: "Super Admin", branch: "Head Office", status: "Active" },
-        { id: 2, name: "Jane Smith", email: "jane@roadoz.com", role: "Accounts Manager", branch: "New York", status: "Active" }
+  const dispatch = useDispatch();
+  const { items, loading, pagination } = useSelector((state) => state.users);
 
-    ];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-    return (
-        <div className="space-y-6 pb-10">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    {/* <BackButton /> */}
-                    <div>
-                        <h1 className="text-2xl font-bold text-text-main">Staff Management</h1>
-                        <p className="text-sm text-primary mt-1 font-medium">
-                            <Link
-                                to="/"
-                                className="hover:underline cursor-pointer"
-                            >
-                                Dashboard
-                            </Link> <span className="text-text-muted mx-1">&gt;&gt;</span> Admin <span className="text-text-muted mx-1">&gt;&gt;</span> Staff
-                        </p>
-                    </div>
-                </div>
-                <Button onClick={() => setIsModalOpen(true)} className="bg-primary text-black font-bold h-10 px-8">
-                    <Plus size={18} /> Add Staff Member
-                </Button>
-            </div>
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
+  const [formData, setFormData] = useState({
+    name: "", email: "", password: "", phone: "", pincode: "", is_active: true
+  });
 
-            <Card className="bg-card-bg border-border-subtle shadow-sm overflow-hidden">
-                <CardContent className="p-0">
-                    <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">
-                        <div className="relative max-w-md">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
-                            <input type="text" placeholder="Search by name, email or branch..." className="w-full bg-card-bg border border-border-subtle rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none" />
-                        </div>
-                    </div>
+  const sortedItems = useMemo(() => {
+    if (!items) return [];
+    return [...items].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [items]);
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-dashboard-bg/50 border-b border-border-subtle text-text-muted text-[11px] font-bold uppercase tracking-widest">
-                                    <th className="px-6 py-4">Employee</th>
-                                    <th className="px-6 py-4">Designation & Location</th>
-                                    <th className="px-6 py-4">Account Status</th>
-                                    <th className="px-6 py-4 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border-subtle">
-                                {users.map(user => (
-                                    <tr key={user.id} className="hover:bg-dashboard-bg/30 transition-colors">
-                                        <td className="px-6 py-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary font-bold">{user.name.charAt(0)}</div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-text-main">{user.name}</p>
-                                                    <p className="text-xs text-text-muted flex items-center gap-1"><Mail size={10} /> {user.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-6 text-sm">
-                                            <p className="font-bold text-text-main flex items-center gap-1.5"><Shield size={14} className="text-primary" /> {user.role}</p>
-                                            <p className="text-[10px] text-text-muted uppercase font-bold mt-1 tracking-wider">{user.branch}</p>
-                                        </td>
-                                        <td className="px-6 py-6">
-                                            <span className="px-3 py-1 bg-green-500/10 text-green-500 text-[10px] font-bold rounded-lg border border-green-500/20 uppercase">Active</span>
-                                        </td>
-                                        <td className="px-6 py-6">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <button className="p-2 border border-primary/30 text-primary rounded-md"><Edit size={14} /></button>
-                                                <button className="p-2 border border-red-500/30 text-red-500 rounded-md"><Trash2 size={14} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+  useEffect(() => {
+    fetchData();
+  }, [dispatch]);
 
-            {/* MODAL - FIXED FOR DARK MODE */}
-            <AnimatePresence>
-                {isModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card-bg rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-border-subtle">
-                            <div className="p-6 border-b border-border-subtle bg-dashboard-bg/20 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-primary/20 rounded-lg text-primary"><User size={20} /></div>
-                                    <h3 className="text-lg font-bold text-text-main">Add New Staff Member</h3>
-                                </div>
-                                <button onClick={() => setIsModalOpen(false)} className="text-text-muted hover:text-primary"><X size={24} /></button>
-                            </div>
+  const fetchData = (customParams = {}) => {
+    const params = {
+      page: customParams.page || pagination.page || 1,
+      limit: 10,
+      search: searchTerm || undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+      sort: 'created_at',
+      order: 'desc',
+      ...customParams
+    };
+    dispatch(getUsers(params));
+  };
 
-                            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-card-bg">
-                                {[
-                                    { label: "Full Name *", placeholder: "Staff Name" },
-                                    { label: "Email Address *", placeholder: "staff@roadoz.com" },
-                                    { label: "Branch *", placeholder: "Select Branch" },
-                                    { label: "Password *", placeholder: "••••••••" },
-                                ].map((f, i) => (
-                                    <div key={i} className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">{f.label}</label>
-                                        <input type="text" placeholder={f.placeholder} className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary focus:outline-none placeholder:text-text-muted" />
-                                    </div>
-                                ))}
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Assign Role</label>
-                                    <select className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary focus:outline-none appearance-none">
-                                        <option>Select Role</option>
-                                    </select>
-                                </div>
-                            </div>
+  const validateForm = () => {
+    let errors = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[0-9]{10,14}$/;
 
-                            <div className="p-6 border-t border-border-subtle bg-dashboard-bg/50 flex justify-end gap-3">
-                                <button onClick={() => setIsModalOpen(false)} className="px-6 py-2 text-xs font-bold text-text-muted">Cancel</button>
-                                <Button className="bg-primary text-black px-10 h-10 font-bold shadow-lg">Save Staff Member</Button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+    if (!formData.name.trim()) errors.name = "Full name is required";
+    
+    if (!formData.email) errors.email = "Email address is required";
+    else if (!emailRegex.test(formData.email)) errors.email = "Invalid email format";
+
+    if (!formData.phone) errors.phone = "Phone number is required";
+    else if (!phoneRegex.test(formData.phone.replace(/\s/g, ""))) errors.phone = "Invalid phone format (10-14 digits)";
+
+    if (!editingUser && !formData.password) {
+      errors.password = "Password is required for new users";
+    } else if (formData.password && formData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters";
+    }
+
+    if (formData.pincode && (formData.pincode.length < 4 || formData.pincode.length > 10)) {
+        errors.pincode = "Invalid pincode length";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleOpenModal = (user = null) => {
+    setFormErrors({});
+    if (user) {
+      setEditingUser(user);
+      setFormData({
+        name: user.name, email: user.email, phone: user.phone,
+        pincode: user.pincode || "", is_active: user.is_active, password: "" 
+      });
+    } else {
+      setEditingUser(null);
+      setFormData({ name: "", email: "", password: "", phone: "", pincode: "", is_active: true });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+        toast.error("Please correct the errors in the form");
+        return;
+    }
+
+    const toastId = toast.loading(editingUser ? "Updating user..." : "Creating user...");
+
+    try {
+      if (editingUser) {
+        const updateData = { ...formData };
+        if (!updateData.password) delete updateData.password;
+        await dispatch(editUser({ id: editingUser.id, data: updateData })).unwrap();
+        toast.success("User updated successfully", { id: toastId });
+      } else {
+        await dispatch(addUser(formData)).unwrap();
+        toast.success("User created successfully", { id: toastId });
+      }
+      setIsModalOpen(false);
+      fetchData();
+    } catch (err) {
+      toast.error(err?.message || err || "Operation failed", { id: toastId });
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const res = await swalConfirmDelete("Delete User?", "Permanent revocation of access.");
+    if (res.isConfirmed) {
+      try {
+        await dispatch(removeUser(id)).unwrap();
+        swalSuccess("Deleted", "User removed.");
+      } catch (err) { swalError("Error", err || "Failed to delete."); }
+    }
+  };
+
+  const toggleStatus = async (user) => {
+    try {
+      await dispatch(editUser({ id: user.id, data: { is_active: !user.is_active } })).unwrap();
+      toast.success(`User is now ${!user.is_active ? 'Active' : 'Inactive'}`);
+      fetchData();
+    } catch (err) { toast.error("Status update failed"); }
+  };
+
+  const exportToCSV = () => {
+    if (sortedItems.length === 0) return;
+    const headers = ["Name,Email,Phone,Pincode,Role,Status,Joined"];
+    const rows = sortedItems.map(u => [
+      u.name, u.email, u.phone, u.pincode || "N/A", u.role?.name || "User",
+      u.is_active ? "Active" : "Inactive", new Date(u.created_at).toLocaleDateString()
+    ].join(","));
+    const csvContent = "data:text/csv;charset=utf-8," + headers.concat(rows).join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `users_export.csv`);
+    link.click();
+  };
+
+  const clearFilters = () => {
+    setSearchTerm(""); setStartDate(""); setEndDate("");
+    fetchData({ page: 1, search: undefined, start_date: undefined, end_date: undefined });
+  };
+
+  const filterInputClass = "bg-transparent border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary transition-all w-full";
+  const errorInputClass = "border-red-500 focus:border-red-500 bg-red-500/5";
+
+  return (
+    <div className="space-y-6 pb-20 p-4 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-text-main uppercase tracking-tight">User Management</h1>
+          <p className="text-xs md:text-sm text-primary mt-1 font-medium">
+            <Link to="/" className="hover:underline">Dashboard</Link>
+            <span className="text-text-muted mx-2">&gt;&gt;</span> Admin Settings
+            <span className="text-text-muted mx-2">&gt;&gt;</span> Users
+          </p>
         </div>
-    );
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={exportToCSV} className="flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs">
+                <Download size={16} className="mr-2" /> Export CSV
+            </Button>
+            <Button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs">
+                <Plus size={18} className="mr-2" /> Add New User
+            </Button>
+        </div>
+      </div>
+
+      <Card className="bg-card-bg border-border-subtle shadow-sm">
+        <CardContent className="p-4 md:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <div className="space-y-1.5 lg:col-span-1">
+              <label className="text-[10px] font-bold uppercase text-text-muted ml-1">Search User</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
+                <input type="text" placeholder="Name, email, phone..." className={cn(filterInputClass, "pl-10")} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && fetchData({ page: 1 })} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-text-muted ml-1">Created From</label>
+              <input type="date" className={filterInputClass} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-text-muted ml-1">Created To</label>
+              <input type="date" className={filterInputClass} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+                <Button onClick={() => fetchData({ page: 1 })} className="flex-1 bg-primary hover:bg-primary/90 text-black h-9 text-xs"><Filter size={14} className="mr-2" /> Filter</Button>
+                <Button variant="ghost" onClick={clearFilters} className="h-9 px-3 text-text-muted border border-border-subtle"><RotateCcw size={16} /></Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20"><Loader2 className="animate-spin text-primary" size={40} /></div>
+      ) : (
+        <Card className="bg-card-bg border-border-subtle shadow-sm overflow-hidden rounded-2xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-dashboard-bg/50 text-text-muted text-[10px] font-bold uppercase tracking-widest border-b border-border-subtle">
+                  <th className="px-6 py-4">User Profile</th>
+                  <th className="px-6 py-4">Contact Info</th>
+                  <th className="px-6 py-4">Zip/Location</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {sortedItems.map(user => (
+                  <tr key={user.id} className="hover:bg-dashboard-bg/20 transition-colors group">
+                    <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-primary/20 rounded-full flex items-center justify-center text-primary font-bold text-xs uppercase">{user.name.charAt(0)}</div>
+                            <div>
+                                <p className="font-bold text-sm text-text-main">{user.name}</p>
+                                <div className="flex items-center gap-1 text-[10px] text-primary font-bold uppercase"><Shield size={10}/> {user.role?.name || "User"}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td className="px-6 py-4 space-y-1">
+                       <div className="flex items-center gap-1.5 text-[11px] text-text-muted"><Mail size={12}/> {user.email}</div>
+                       <div className="flex items-center gap-1.5 text-[11px] text-text-muted"><Phone size={12}/> {user.phone}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                       <div className="flex items-center gap-1 text-xs font-bold text-text-main uppercase"><MapPin size={12} className="text-primary"/> {user.pincode || "N/A"}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                       <button onClick={() => toggleStatus(user)}>{user.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}</button>
+                    </td>
+                    <td className="px-6 py-4">
+                       <div className="flex justify-center items-center gap-2">
+                          <button onClick={() => handleOpenModal(user)} className="p-1.5 text-primary bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary hover:text-black"><Edit size={16}/></button>
+                          <button onClick={() => handleDelete(user.id)} className="p-1.5 text-red-500 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white"><Trash2 size={16}/></button>
+                       </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pagination currentPage={pagination.page} totalPages={pagination.pages} totalEntries={pagination.total} onPageChange={(p) => fetchData({ page: p })} />
+        </Card>
+      )}
+
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-card-bg border border-border-subtle rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
+              <div className="p-6 border-b border-border-subtle flex justify-between items-center bg-dashboard-bg/30">
+                <h3 className="font-bold text-text-main flex items-center gap-2 uppercase tracking-tight"><Settings className="text-primary" size={20} /> {editingUser ? "Update User Profile" : "Create User Account"}</h3>
+                <button onClick={() => setIsModalOpen(false)}><X size={24} className="text-text-muted hover:text-primary transition-colors"/></button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-text-muted tracking-widest">Full Name *</label>
+                  <input className={cn(filterInputClass, formErrors.name && errorInputClass)} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="User's Full Name" />
+                  {formErrors.name && <p className="text-[9px] text-red-500 flex items-center gap-1 mt-1"><AlertCircle size={10}/> {formErrors.name}</p>}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-text-muted tracking-widest">Email Address *</label>
+                  <input className={cn(filterInputClass, formErrors.email && errorInputClass)} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="email@roadoz.com" />
+                  {formErrors.email && <p className="text-[9px] text-red-500 flex items-center gap-1 mt-1"><AlertCircle size={10}/> {formErrors.email}</p>}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-text-muted tracking-widest">Phone Number *</label>
+                  <input className={cn(filterInputClass, formErrors.phone && errorInputClass)} value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="+91..." />
+                  {formErrors.phone && <p className="text-[9px] text-red-500 flex items-center gap-1 mt-1"><AlertCircle size={10}/> {formErrors.phone}</p>}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-text-muted tracking-widest">Pincode</label>
+                  <input className={cn(filterInputClass, formErrors.pincode && errorInputClass)} value={formData.pincode} onChange={e => setFormData({...formData, pincode: e.target.value})} placeholder="682001" />
+                  {formErrors.pincode && <p className="text-[9px] text-red-500 flex items-center gap-1 mt-1"><AlertCircle size={10}/> {formErrors.pincode}</p>}
+                </div>
+
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[10px] font-bold uppercase text-text-muted tracking-widest">Password {editingUser && "(Empty to keep current)"}</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                    <input type="password" className={cn(filterInputClass, "pl-9", formErrors.password && errorInputClass)} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="••••••••" />
+                  </div>
+                  {formErrors.password && <p className="text-[9px] text-red-500 flex items-center gap-1 mt-1"><AlertCircle size={10}/> {formErrors.password}</p>}
+                </div>
+                
+                <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-border-subtle mt-2">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2 text-xs font-bold text-text-muted uppercase">Cancel</button>
+                  <Button type="submit" className="bg-primary text-black font-bold px-10 h-11 rounded-xl shadow-lg">
+                    {editingUser ? "Update Account" : "Create Account"}
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }

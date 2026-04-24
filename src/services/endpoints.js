@@ -8,4 +8,5 @@ export const ENDPOINTS = {
   CHANGE_PASSWORD_REQUEST: "/profile/change-password/request",
   CHANGE_PASSWORD_VERIFY: "/profile/change-password/verify",
   FRANCHISE: "/franchise",
+  USERS: "/rbac/users",
 };

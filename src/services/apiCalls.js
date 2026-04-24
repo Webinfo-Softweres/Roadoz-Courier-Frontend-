@@ -115,3 +115,23 @@ export const deleteFranchiseApi = async (id) => {
   const res = await API.delete(`${ENDPOINTS.FRANCHISE}/${id}`);
   return res.data;
 };
+
+export const fetchUsersApi = async (params) => {
+  const res = await API.get(ENDPOINTS.USERS, { params });
+  return res.data;
+};
+
+export const createUserApi = async (data) => {
+  const res = await API.post("/rbac/users", data);
+  return res.data;
+};
+
+export const updateUserApi = async (id, data) => {
+  const res = await API.put(`/rbac/users/${id}`, data);
+  return res.data;
+};
+
+export const deleteUserApi = async (id) => {
+  const res = await API.delete(`/rbac/users/${id}`);
+  return res.data;
+};
