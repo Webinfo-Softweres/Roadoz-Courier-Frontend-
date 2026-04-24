@@ -135,3 +135,14 @@ export const deleteUserApi = async (id) => {
   const res = await API.delete(`/rbac/users/${id}`);
   return res.data;
 };
+
+export const fetchRolesApi = async () => {
+  const res = await API.get("/rbac/roles");
+  return res.data; 
+};
+
+export const assignRoleToUserApi = async (userId, roleId) => {
+  const res = await API.put(`/rbac/users/${userId}`, { role_id: roleId });
+  return res.data;
+};
+

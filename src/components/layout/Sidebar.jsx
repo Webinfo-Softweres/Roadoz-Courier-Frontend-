@@ -47,8 +47,9 @@ export function Sidebar({ isOpen, setIsOpen }) {
     ],
     admin: [
       { name: "User Management", to: `${base}/admin/users` },
-      { name: "Module Management", to: `${base}/admin/modules` },
       { name: "Role Permissions", to: `${base}/admin/roles` },
+      { name: "Assign Roles", to: `${base}/admin/assign-roles` },
+      
     ],
     tools: [
       { name: "Serviceable Pincode", to: `${base}/serviceable-pincode` },

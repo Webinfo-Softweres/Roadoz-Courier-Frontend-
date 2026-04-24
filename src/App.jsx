@@ -100,7 +100,7 @@ export default function App() {
             <Route path="settings/kyc" element={<KYC />} />
 
             {/* Admin */}
-            <Route path="admin/modules" element={<Permissions />} />
+            <Route path="admin/assign-roles" element={<Permissions />} />
             <Route path="admin/roles" element={<Roles />} />
             <Route path="admin/users" element={<Users />} />
 
