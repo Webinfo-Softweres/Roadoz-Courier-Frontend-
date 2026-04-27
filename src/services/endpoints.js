@@ -10,4 +10,5 @@ export const ENDPOINTS = {
   FRANCHISE: "/franchise",
   USERS: "/rbac/users",
   ROLES: "/rbac/roles",
+  
 };

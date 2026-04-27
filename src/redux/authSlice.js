@@ -1,21 +1,25 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { loginApi, logoutApi, checkRoleApi } from "../services/apiCalls";
 import Cookies from "js-cookie";
+import { loginApi, logoutApi, checkRoleApi } from "../services/apiCalls";
 
 export const loginUser = createAsyncThunk(
   "auth/loginUser",
   async (userData, { rejectWithValue }) => {
     try {
       const data = await loginApi(userData);
-      // console.log("LOGIN RESPONSE:", data);
+      
+      // Save Token and Role name to Cookies
       Cookies.set("access_token", data.access_token, { expires: 7 });
-      // console.log("COOKIE AFTER SET:", Cookies.get("access_token"));
-      Cookies.set("role", data.role, { expires: 7 });
+      Cookies.set("role", data.role.name, { expires: 7 });
+      
+      // Save full permissions list to LocalStorage for persistence
+      localStorage.setItem("permissions", JSON.stringify(data.permissions || []));
+      
       return data;
     } catch (error) {
       return rejectWithValue(error.response?.data || "Login failed");
     }
-  },
+  }
 );
 
 export const checkUserRole = createAsyncThunk(
@@ -27,22 +31,23 @@ export const checkUserRole = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(error.response?.data || "Role check failed");
     }
-  },
+  }
 );
 
 export const logoutUser = createAsyncThunk(
   "auth/logoutUser",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await logoutApi();
-      return response;
+      await logoutApi();
     } catch (error) {
       return rejectWithValue(error.response?.data || "Logout failed");
     } finally {
+      // Clear all auth data
       Cookies.remove("access_token");
       Cookies.remove("role");
+      localStorage.removeItem("permissions");
     }
-  },
+  }
 );
 
 const authSlice = createSlice({
@@ -50,6 +55,7 @@ const authSlice = createSlice({
   initialState: {
     user: null,
     role: Cookies.get("role") || null,
+    permissions: JSON.parse(localStorage.getItem("permissions") || "[]"),
     loading: false,
     error: null,
     isAuthenticated: !!Cookies.get("access_token"),
@@ -60,13 +66,16 @@ const authSlice = createSlice({
     logout: (state) => {
       Cookies.remove("access_token");
       Cookies.remove("role");
+      localStorage.removeItem("permissions");
       state.user = null;
       state.role = null;
+      state.permissions = [];
       state.isAuthenticated = false;
     },
   },
   extraReducers: (builder) => {
     builder
+      // LOGIN
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -74,29 +83,23 @@ const authSlice = createSlice({
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
         state.isAuthenticated = true;
-        state.role = action.payload.role;
+        state.role = action.payload.role.name;
+        state.permissions = action.payload.permissions || [];
         state.user = action.payload;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
-
-      .addCase(logoutUser.pending, (state) => {
-        state.loading = true;
-      })
+      // LOGOUT
       .addCase(logoutUser.fulfilled, (state) => {
-        state.loading = false;
         state.user = null;
         state.role = null;
+        state.permissions = [];
         state.isAuthenticated = false;
-      })
-      .addCase(logoutUser.rejected, (state) => {
         state.loading = false;
-        state.user = null;
-        state.role = null;
-        state.isAuthenticated = false;
       })
+      // ROLE CHECK
       .addCase(checkUserRole.pending, (state) => {
         state.roleCheckLoading = true;
       })
