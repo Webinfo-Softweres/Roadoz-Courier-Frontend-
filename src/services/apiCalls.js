@@ -203,3 +203,4 @@ export const deletePermissionApi = async (id) => {
   const res = await API.delete(`/rbac/permissions/${id}`);
   return res.data;
 };
+

@@ -1,11 +1,8 @@
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Cookies from "js-cookie";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
+import { useSelector } from "react-redux";
+import { useEffect } from "react";
 
 import { Login } from "./pages/Login";
 import { ForgotPassword } from "./pages/ForgotPassword";
@@ -42,12 +39,66 @@ import { RolesManagement } from "./pages/admin/RolesManagement";
 import AddRolePage from "./pages/admin/AddRolePage";
 import RoleWizard from "./components/common/RoleWizard";
 
+const PermissionRoute = ({ children, permission }) => {
+  const { role, permissions, isAuthenticated } = useSelector(
+    (state) => state.auth
+  );
+
+  const hasAccess =
+    role === "super_admin" ||
+    (permission ? permissions?.includes(permission) : true);
+
+  useEffect(() => {
+    if (isAuthenticated && !hasAccess) {
+      toast.error("Access Denied! You do not have permission.", {
+        id: "access-denied",
+        icon: "🚫",
+      });
+    }
+  }, [hasAccess, isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+
+  return hasAccess ? children : <Navigate to="/dashboard" />;
+};
+
 export default function App() {
   const token = Cookies.get("access_token");
 
   return (
     <ThemeProvider>
-      <Toaster position="top-right" reverseOrder={false} />
+      <Toaster
+        position="top-right"
+        reverseOrder={false}
+        gutter={10}
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: "#111827",
+            color: "#ffffff",
+            borderRadius: "12px",
+            padding: "14px 18px",
+            fontSize: "14px",
+            fontWeight: "500",
+            boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
+          },
+          success: {
+            iconTheme: {
+              primary: "#22c55e",
+              secondary: "#ffffff",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: "#ef4444",
+              secondary: "#ffffff",
+            },
+          },
+        }}
+      />
+
       <Router>
         <Routes>
           <Route
@@ -70,79 +121,250 @@ export default function App() {
           >
             <Route index element={<Dashboard />} />
 
-            <Route path="new-orders" element={<NewOrder />} />
-            <Route path="processing-order" element={<ProcessingOrders />} />
-            <Route path="all-orders" element={<ProcessingOrders />} />
-            <Route path="manifested" element={<ProcessingOrders />} />
-            <Route path="not-picked" element={<ProcessingOrders />} />
-            <Route path="in-transit" element={<ProcessingOrders />} />
-            <Route path="pending" element={<ProcessingOrders />} />
-            <Route path="out-for-delivery" element={<ProcessingOrders />} />
-            <Route path="delivered" element={<ProcessingOrders />} />
-            <Route path="rto-in-transit" element={<ProcessingOrders />} />
-            <Route path="rto-delivered" element={<ProcessingOrders />} />
-            <Route path="lost" element={<ProcessingOrders />} />
-            <Route path="cancelled" element={<ProcessingOrders />} />
-            <Route path="returned" element={<ProcessingOrders />} />
+            {/* Orders */}
+            <Route
+              path="new-orders"
+              element={
+                <PermissionRoute permission="orders:create">
+                  <NewOrder />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="processing-order"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="all-orders"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="manifested"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="not-picked"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="in-transit"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="pending"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="out-for-delivery"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="delivered"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+
+            <Route path="serviceable-pincode" element={<ServiceablePincode />} />
+            <Route path="rate-calculator" element={<RateCalculator />} />
+            <Route path="channel-integration" element={<ChannelIntegration />} />
+
+
+            {/* <Route path="admin/roles/add" element={<AddRolePage />} /> */}
+            <Route path="admin/roles" element={<RolesManagement />} />
+            <Route path="admin/roles/add" element={ <PermissionRoute permission="roles:add"><RoleWizard /></PermissionRoute> } />
+            <Route path="admin/roles/edit/:id" element={ <PermissionRoute permission="roles:edit"><RoleWizard /></PermissionRoute> } />
+
 
             <Route
-              path="serviceable-pincode"
-              element={<ServiceablePincode />}
+              path="wallet"
+              element={
+                <PermissionRoute permission="finance:view">
+                  <Wallet />
+                </PermissionRoute>
+              }
             />
-            <Route path="rate-calculator" element={<RateCalculator />} />
             <Route
-              path="channel-integration"
-              element={<ChannelIntegration />}
+              path="cod-remittance"
+              element={
+                <PermissionRoute permission="finance:view">
+                  <CODRemittance />
+                </PermissionRoute>
+              }
             />
-            <Route path="wallet" element={<Wallet />} />
-            <Route path="cod-remittance" element={<CODRemittance />} />
-            <Route path="invoices" element={<Invoices />} />
-            <Route path="consignees" element={<Consignees />} />
+            <Route
+              path="invoices"
+              element={
+                <PermissionRoute permission="finance:view">
+                  <Invoices />
+                </PermissionRoute>
+              }
+            />
+
+            {/* CRM */}
+            <Route
+              path="consignees"
+              element={
+                <PermissionRoute permission="users:view">
+                  <Consignees />
+                </PermissionRoute>
+              }
+            />
             <Route path="tickets" element={<Tickets />} />
             <Route path="reports" element={<Reports />} />
 
             {/* Settings */}
-            <Route path="settings/general" element={<GeneralDetails />} />
+            <Route
+              path="settings/general"
+              element={
+                <PermissionRoute permission="profile:view">
+                  <GeneralDetails />
+                </PermissionRoute>
+              }
+            />
             <Route path="settings/password" element={<ChangePassword />} />
-            <Route path="settings/pickup" element={<PickupAddress />} />
-            <Route path="settings/rto" element={<RTOAddress />} />
+            <Route
+              path="settings/pickup"
+              element={
+                <PermissionRoute permission="profile:edit">
+                  <PickupAddress />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/rto"
+              element={
+                <PermissionRoute permission="profile:edit">
+                  <RTOAddress />
+                </PermissionRoute>
+              }
+            />
             <Route path="settings/label" element={<LabelSetting />} />
-            <Route path="settings/kyc" element={<KYC />} />
+            <Route
+              path="settings/kyc"
+              element={
+                <PermissionRoute permission="profile:edit">
+                  <KYC />
+                </PermissionRoute>
+              }
+            />
 
             {/* Admin */}
-            <Route path="admin/assign-roles" element={<Permissions />} />
-            {/* <Route path="admin/roles" element={<Roles />} /> */}
-            <Route path="admin/users" element={<Users />} />
-            <Route path="admin/roles" element={<RolesManagement />} />
-            {/* <Route path="admin/roles/add" element={<AddRolePage />} /> */}
-            <Route path="admin/roles/add" element={<RoleWizard />} />
-            <Route path="admin/roles/edit/:id" element={<RoleWizard />} />
+            <Route
+              path="admin/assign-roles"
+              element={
+                <PermissionRoute permission="user_roles:assign">
+                  <Permissions />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="admin/roles"
+              element={
+                <PermissionRoute permission="roles:view">
+                  <Roles />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="admin/users"
+              element={
+                <PermissionRoute permission="users:view">
+                  <Users />
+                </PermissionRoute>
+              }
+            />
 
             {/* Franchise */}
-            <Route path="franchise" element={<Franchise />} />
-            <Route path="franchise/add-staff" element={<StaffRegistration />} />
+            <Route
+              path="franchise"
+              element={
+                <PermissionRoute permission="franchise:view">
+                  <Franchise />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="franchise/add-staff"
+              element={
+                <PermissionRoute permission="users:create">
+                  <StaffRegistration />
+                </PermissionRoute>
+              }
+            />
             <Route
               path="franchise/edit-staff/:id"
-              element={<StaffRegistration />}
+              element={
+                <PermissionRoute permission="users:edit">
+                  <StaffRegistration />
+                </PermissionRoute>
+              }
             />
-            <Route path="franchise/add" element={<FranchiseWizard />} />
-            <Route path="franchise/edit/:id" element={<FranchiseWizard />} />
+            <Route
+              path="franchise/add"
+              element={
+                <PermissionRoute permission="franchise:create">
+                  <FranchiseWizard />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="franchise/edit/:id"
+              element={
+                <PermissionRoute permission="franchise:edit">
+                  <FranchiseWizard />
+                </PermissionRoute>
+              }
+            />
           </Route>
 
-          {/* Profile (outside dashboard layout) */}
           <Route
             path="/profile"
             element={
               <ProtectedRoute>
-                <Profile />
+                <PermissionRoute permission="profile:view">
+                  <Profile />
+                </PermissionRoute>
               </ProtectedRoute>
             }
           />
 
-          {/* 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
     </ThemeProvider>
   );
 }
+
+
+
