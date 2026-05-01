@@ -204,3 +204,7 @@ export const deletePermissionApi = async (id) => {
   return res.data;
 };
 
+export const createPickupAddressApi = async (data) => {
+  const res = await API.post("/orders/pickup-addresses", data);
+  return res.data;
+};

@@ -36,6 +36,7 @@ export function Profile() {
   const dispatch = useDispatch();
 
   const { user, loading } = useSelector((state) => state.profile);
+  const role = useSelector((state) => state.auth.role);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -259,7 +260,7 @@ export function Profile() {
                 {user.name}
               </h2>
               <p className="text-[10px] text-primary font-bold mb-6 uppercase tracking-[0.2em]">
-                {user.role?.replace("_", " ")}
+                {(user?.role || role)?.replace("_", " ") || "Administrator"}
               </p>
 
               <div className="w-full h-px bg-border-subtle mb-6"></div>

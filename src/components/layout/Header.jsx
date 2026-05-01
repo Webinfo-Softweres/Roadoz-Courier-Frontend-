@@ -41,6 +41,7 @@ export function Header({ toggleSidebar }) {
   }, [dispatch]);
 
   const { user } = useSelector((state) => state.profile);
+  const role = useSelector((state) => state.auth.role);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
@@ -261,7 +262,7 @@ export function Header({ toggleSidebar }) {
                   {user?.name || "Loading..."}
                 </span>
                 <span className="text-[10px] text-text-muted mt-0.5 uppercase tracking-tighter">
-                  {user?.role?.replace("_", " ") || "Administrator"}
+                  {(user?.role || role)?.replace("_", " ") || "Administrator"}
                 </span>
               </div>
               <ChevronDown

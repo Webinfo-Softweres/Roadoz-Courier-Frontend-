@@ -1,4 +1,9 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import Cookies from "js-cookie";
 import { Toaster, toast } from "react-hot-toast";
 import { useSelector } from "react-redux";
@@ -41,7 +46,7 @@ import RoleWizard from "./components/common/RoleWizard";
 
 const PermissionRoute = ({ children, permission }) => {
   const { role, permissions, isAuthenticated } = useSelector(
-    (state) => state.auth
+    (state) => state.auth,
   );
 
   const hasAccess =
@@ -195,16 +200,34 @@ export default function App() {
               }
             />
 
-            <Route path="serviceable-pincode" element={<ServiceablePincode />} />
+            <Route
+              path="serviceable-pincode"
+              element={<ServiceablePincode />}
+            />
             <Route path="rate-calculator" element={<RateCalculator />} />
-            <Route path="channel-integration" element={<ChannelIntegration />} />
-
+            <Route
+              path="channel-integration"
+              element={<ChannelIntegration />}
+            />
 
             {/* <Route path="admin/roles/add" element={<AddRolePage />} /> */}
             <Route path="admin/roles" element={<RolesManagement />} />
-            <Route path="admin/roles/add" element={ <PermissionRoute permission="roles:add"><RoleWizard /></PermissionRoute> } />
-            <Route path="admin/roles/edit/:id" element={ <PermissionRoute permission="roles:edit"><RoleWizard /></PermissionRoute> } />
-
+            <Route
+              path="admin/roles/add"
+              element={
+                <PermissionRoute permission="roles:add">
+                  <RoleWizard />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="admin/roles/edit/:id"
+              element={
+                <PermissionRoute permission="roles:edit">
+                  <RoleWizard />
+                </PermissionRoute>
+              }
+            />
 
             <Route
               path="wallet"
@@ -365,6 +388,3 @@ export default function App() {
     </ThemeProvider>
   );
 }
-
-
-

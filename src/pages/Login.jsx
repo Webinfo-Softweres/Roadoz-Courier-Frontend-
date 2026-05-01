@@ -40,39 +40,6 @@ export function Login() {
     setLoginError("");
   };
 
-  // const handleFirstStep = async (e) => {
-  //   e.preventDefault();
-  //   setLoginError("");
-
-  //   const resultAction = await dispatch(
-  //     loginUser({
-  //       email: formData.email,
-  //       password: formData.password,
-  //     }),
-  //   );
-
-  //   if (loginUser.fulfilled.match(resultAction)) {
-  //     const role = resultAction.payload?.role;
-
-  //     if (role === "super_admin") {
-  //       navigate("/dashboard");
-  //     } else if (role?.toLowerCase() === "franchise") {
-  //       setStep(2);
-  //     }
-  //   } else {
-  //     const message =
-  //       resultAction?.payload?.detail || resultAction?.error?.message || "";
-
-  //     // Treat this as flow, not error
-  //     if (message.toLowerCase().includes("franchise")) {
-  //       setStep(2);
-  //       return;
-  //     }
-
-  //     setLoginError(message || "Login failed");
-  //   }
-  // };
-
   const handleFirstStep = async (e) => {
     e.preventDefault();
     setLoginError("");
@@ -173,13 +140,6 @@ export function Login() {
                   Enter your credentials to continue
                 </p>
               </div>
-
-              {/* {error && (
-                <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-500 text-sm">
-                  <AlertCircle size={18} />
-                  <span>{error}</span>
-                </div>
-              )} */}
 
               {loginError && (
                 <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-500 text-sm">
@@ -283,6 +243,13 @@ export function Login() {
                   dashboard.
                 </p>
               </div>
+
+              {loginError && (
+                <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-500 text-sm">
+                  <AlertCircle size={18} />
+                  <span>{loginError}</span>
+                </div>
+              )}
 
               <form onSubmit={handleFinalStep} className="space-y-6">
                 <div className="space-y-2">
