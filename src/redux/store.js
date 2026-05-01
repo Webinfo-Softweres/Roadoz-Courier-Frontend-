@@ -5,6 +5,7 @@ import franchiseReducer from "./franchiseSlice";
 import userReducer from "./userSlice";
 import roleReducer from "./roleSlice";
 import permissionReducer from "./permissionSlice";
+import orderReducer from "./orderSlice";
 
 export const store = configureStore({
   reducer: {
@@ -14,5 +15,7 @@ export const store = configureStore({
     users: userReducer,
     roles: roleReducer,
     permissions: permissionReducer,
+    orders: orderReducer,
   },
 });
+
