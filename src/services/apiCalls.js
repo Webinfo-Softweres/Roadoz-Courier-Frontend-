@@ -213,3 +213,18 @@ export const fetchPickupAddressesApi = async (params) => {
   const res = await API.get("/orders/pickup-addresses", { params });
   return res.data;
 };
+
+export const createConsigneeApi = async (data) => {
+  const res = await API.post("/orders/consignees", data);
+  return res.data;
+};
+
+export const fetchConsigneesApi = async (params) => {
+  const res = await API.get("/orders/consignees", { params });
+  return res.data;
+};
+
+export const createOrderApi = async (data) => {
+  const res = await API.post("/orders", data);
+  return res.data;
+};

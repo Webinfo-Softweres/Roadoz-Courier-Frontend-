@@ -2,9 +2,11 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import {
   createPickupAddressApi,
   fetchPickupAddressesApi,
+  createConsigneeApi,
+  fetchConsigneesApi,
+  createOrderApi,
 } from "../services/apiCalls";
 
-// CREATE PICKUP ADDRESS
 export const createPickupAddress = createAsyncThunk(
   "orders/createPickupAddress",
   async (data, { rejectWithValue }) => {
@@ -12,13 +14,12 @@ export const createPickupAddress = createAsyncThunk(
       return await createPickupAddressApi(data);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to create pickup address",
+        error.response?.data?.detail || "Failed to create pickup address"
       );
     }
-  },
+  }
 );
 
-// FETCH PICKUP ADDRESSES
 export const fetchPickupAddresses = createAsyncThunk(
   "orders/fetchPickupAddresses",
   async (params, { rejectWithValue }) => {
@@ -26,19 +27,63 @@ export const fetchPickupAddresses = createAsyncThunk(
       return await fetchPickupAddressesApi(params);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to fetch pickup addresses",
+        error.response?.data?.detail || "Failed to fetch pickup addresses"
       );
     }
-  },
+  }
+);
+
+export const createConsignee = createAsyncThunk(
+  "orders/createConsignee",
+  async (data, { rejectWithValue }) => {
+    try {
+      return await createConsigneeApi(data);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to create consignee"
+      );
+    }
+  }
+);
+
+export const fetchConsignees = createAsyncThunk(
+  "orders/fetchConsignees",
+  async (params, { rejectWithValue }) => {
+    try {
+      return await fetchConsigneesApi(params);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to fetch consignees"
+      );
+    }
+  }
+);
+
+export const createOrder = createAsyncThunk(
+  "orders/createOrder",
+  async (orderData, { rejectWithValue }) => {
+    try {
+      return await createOrderApi(orderData);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to create order"
+      );
+    }
+  }
 );
 
 const orderSlice = createSlice({
   name: "orders",
   initialState: {
     pickupAddresses: [],
+    consignees: [],
     selectedAddress: null,
+    totalPickupAddresses: 0,
+    totalConsignees: 0,
     loading: false,
+    orderLoading: false, 
     error: null,
+    lastCreatedOrder: null,
   },
   reducers: {
     clearOrderError: (state) => {
@@ -50,10 +95,13 @@ const orderSlice = createSlice({
     setSelectedAddress: (state, action) => {
       state.selectedAddress = action.payload;
     },
+    resetOrderState: (state) => {
+      state.lastCreatedOrder = null;
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
-      // CREATE PICKUP ADDRESS
       .addCase(createPickupAddress.pending, (state) => {
         state.loading = true;
       })
@@ -68,28 +116,61 @@ const orderSlice = createSlice({
         state.error = action.payload;
       })
 
-      // FETCH PICKUP ADDRESSES
       .addCase(fetchPickupAddresses.pending, (state) => {
         state.loading = true;
       })
       .addCase(fetchPickupAddresses.fulfilled, (state, action) => {
         state.loading = false;
-        state.pickupAddresses = action.payload.items;
-        state.total = action.payload.total;
+        state.pickupAddresses = action.payload.items || [];
+        state.totalPickupAddresses = action.payload.total || 0;
         state.error = null;
 
-        // auto select first address (optional)
-        if (!state.selectedAddress && action.payload.items.length > 0) {
+        if (!state.selectedAddress && (action.payload.items?.length > 0)) {
           state.selectedAddress = action.payload.items[0];
         }
       })
       .addCase(fetchPickupAddresses.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+
+      .addCase(fetchConsignees.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchConsignees.fulfilled, (state, action) => {
+        state.loading = false;
+        state.consignees = action.payload.items || [];
+        state.totalConsignees = action.payload.total || 0;
+      })
+      .addCase(fetchConsignees.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      .addCase(createConsignee.fulfilled, (state, action) => {
+        state.consignees.unshift(action.payload);
+      })
+
+      .addCase(createOrder.pending, (state) => {
+        state.orderLoading = true;
+      })
+      .addCase(createOrder.fulfilled, (state, action) => {
+        state.orderLoading = false;
+        state.lastCreatedOrder = action.payload;
+        state.error = null;
+      })
+      .addCase(createOrder.rejected, (state, action) => {
+        state.orderLoading = false;
+        state.error = action.payload;
       });
   },
 });
 
-export const { clearOrderError, clearSelectedAddress, setSelectedAddress } =
-  orderSlice.actions;
+export const { 
+  clearOrderError, 
+  clearSelectedAddress, 
+  setSelectedAddress, 
+  resetOrderState 
+} = orderSlice.actions;
+
 export default orderSlice.reducer;

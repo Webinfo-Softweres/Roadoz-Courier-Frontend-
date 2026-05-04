@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Trash2,
@@ -6,731 +6,373 @@ import {
   ChevronUp,
   Lock,
   ShoppingBag,
+  Search,
+  MapPin,
+  Loader2,
+  User,
+  Phone,
+  Mail,
+  MapPinned,
   X,
+  CreditCard,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { useDispatch, useSelector } from "react-redux";
+import { Link, useNavigate } from "react-router-dom";
+
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
-import { Link } from "react-router-dom";
 import PickupAddressModal from "../components/modals/PickupAddressModal";
-import { useDispatch, useSelector } from "react-redux";
+
 import {
   createPickupAddress,
   fetchPickupAddresses,
   setSelectedAddress,
+  fetchConsignees,
+  createOrder,
 } from "../redux/orderSlice";
-import { useEffect } from "react";
+import { createConsigneeApi } from "../services/apiCalls";
 
 export default function NewOrder() {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const { pickupAddresses, selectedAddress, consignees, orderLoading, loading: pickupLoading, error: reduxError } = useSelector(
+    (state) => state.orders
+  );
+
   const [orderType, setOrderType] = useState("B2C");
   const [paymentMethod, setPaymentMethod] = useState("Prepaid");
+  const [codAmount, setCodAmount] = useState("");
+  const [toPayAmount, setToPayAmount] = useState("");
+  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+  const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
+  const [isConsigneeDetailsVisible, setIsConsigneeDetailsVisible] = useState(true);
+  const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
+
+  const [pickupForm, setPickupForm] = useState({
+    nickname: "", contact_name: "", phone: "", email: "",
+    address_line_1: "", address_line_2: "", pincode: "", city: "", state: "", country: "India",
+  });
+
+  const [consigneeSearch, setConsigneeSearch] = useState("");
+  const [showConsigneeResults, setShowConsigneeResults] = useState(false);
+  const [consigneeData, setConsigneeData] = useState({
+    id: null, name: "", mobile: "", alternate_mobile: "", email: "",
+    address_line_1: "", address_line_2: "", pincode: "", city: "", state: ""
+  });
+
   const [products, setProducts] = useState([
-    { id: 1, name: "", sku: "", price: "", qty: "", total: "" },
+    { id: Date.now(), product_name: "", sku: "", unit_price: "", qty: 1, total: 0 }
   ]);
   const [packages, setPackages] = useState([
-    {
-      id: 1,
-      count: 1,
-      length: "",
-      breadth: "",
-      height: "",
-      volWeight: "",
-      physicalWeight: "",
-    },
+    { id: Date.now(), count: 1, length_cm: "", breadth_cm: "", height_cm: "", vol_weight_kg: 0, physical_weight_kg: "" }
   ]);
-
-  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
-  const [isConsigneeDetailsVisible, setIsConsigneeDetailsVisible] =
-    useState(true);
-  const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(false);
-
-  const dispatch = useDispatch();
+  const [otherDetails, setOtherDetails] = useState({ gst_number: "", eway_bill_number: "" });
 
   useEffect(() => {
     dispatch(fetchPickupAddresses());
   }, [dispatch]);
 
-  const { loading, error, selectedAddress, pickupAddresses } = useSelector(
-    (state) => state.orders,
-  );
+  // --- Calculations ---
+  const totalOrderValue = useMemo(() => 
+    products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), 
+  [products]);
 
-  const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
-
-  const [pickupForm, setPickupForm] = useState({
-    nickname: "",
-    contact_name: "",
-    phone: "",
-    email: "",
-    address_line_1: "",
-    address_line_2: "",
-    pincode: "",
-    city: "",
-    state: "",
-    country: "India",
-  });
+  const weightSummary = useMemo(() => {
+    let totalPhys = 0;
+    let totalVol = 0;
+    packages.forEach(pkg => {
+      const vol = (Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 5000;
+      totalVol += vol * Number(pkg.count);
+      totalPhys += Number(pkg.physical_weight_kg) * Number(pkg.count);
+    });
+    return {
+      totalVol: totalVol.toFixed(2),
+      totalPhys: totalPhys.toFixed(2),
+      applicable: Math.max(totalVol, totalPhys).toFixed(2),
+    };
+  }, [packages]);
 
   const handlePickupChange = (e) => {
     const { name, value } = e.target;
-    setPickupForm((prev) => ({
-      ...prev,
-      [name]: value,
+    setPickupForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleProductChange = (id, field, value) => {
+    setProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        const updated = { ...p, [field]: value };
+        if (field === 'unit_price' || field === 'qty') {
+          updated.total = (Number(updated.unit_price) || 0) * (Number(updated.qty) || 0);
+        }
+        return updated;
+      }
+      return p;
     }));
   };
 
-  const handleSavePickup = async () => {
-    const promise = dispatch(createPickupAddress(pickupForm));
-
-    toast.promise(promise, {
-      loading: "Saving pickup address...",
-      success: (res) => {
-        if (res.meta.requestStatus === "fulfilled") {
-          setIsPickupModalOpen(false);
-
-          setPickupForm({
-            nickname: "",
-            contact_name: "",
-            phone: "",
-            email: "",
-            address_line_1: "",
-            address_line_2: "",
-            pincode: "",
-            city: "",
-            state: "",
-            country: "India",
-          });
-
-          return "Pickup address added successfully";
-        } else {
-          throw new Error("Failed");
-        }
-      },
-      error: (err) => {
-        return "Failed to save pickup address";
-      },
-    });
+  const handlePackageChange = (id, field, value) => {
+    setPackages(prev => prev.map(p => {
+      if (p.id === id) {
+        const updated = { ...p, [field]: value };
+        const vol = (Number(updated.length_cm) * Number(updated.breadth_cm) * Number(updated.height_cm)) / 5000;
+        updated.vol_weight_kg = vol.toFixed(2);
+        return updated;
+      }
+      return p;
+    }));
   };
 
-  const addProduct = () => {
-    setProducts([
-      ...products,
-      { id: Date.now(), name: "", sku: "", price: "", qty: "", total: "" },
-    ]);
+  const selectConsignee = (c) => {
+    setConsigneeData(c);
+    setConsigneeSearch(c.name);
+    setShowConsigneeResults(false);
   };
 
-  const removeProduct = (id) => {
-    if (products.length > 1) {
-      setProducts(products.filter((p) => p.id !== id));
+  const clearConsignee = () => {
+    setConsigneeData({ id: null, name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
+    setConsigneeSearch("");
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedAddress) return toast.error("Please select a pickup address");
+    if (!consigneeData.name || !consigneeData.pincode) return toast.error("Consignee details are incomplete");
+
+    try {
+      let finalConsigneeId = consigneeData.id;
+      if (!finalConsigneeId) {
+        const newC = await createConsigneeApi(consigneeData);
+        finalConsigneeId = newC.id;
+      }
+
+      const payload = {
+        order_type: orderType,
+        pickup_address_id: selectedAddress.id,
+        consignee_id: finalConsigneeId,
+        payment_method: paymentMethod,
+        cod_amount: paymentMethod === "COD" ? Number(codAmount) : 0,
+        to_pay_amount: paymentMethod === "To Pay" ? Number(toPayAmount) : 0,
+        rov: "owner_risk",
+        order_value: Number(totalOrderValue),
+        items: products.map(({ id, ...rest }) => ({ ...rest, unit_price: Number(rest.unit_price), qty: Number(rest.qty), total: Number(rest.total) })),
+        packages: packages.map(({ id, ...rest }) => ({ ...rest, count: Number(rest.count), length_cm: Number(rest.length_cm), breadth_cm: Number(rest.breadth_cm), height_cm: Number(rest.height_cm), vol_weight_kg: Number(rest.vol_weight_kg), physical_weight_kg: Number(rest.physical_weight_kg) })),
+        gst_number: otherDetails.gst_number || null,
+        eway_bill_number: otherDetails.eway_bill_number || null
+      };
+
+      await dispatch(createOrder(payload)).unwrap();
+      toast.success("Order Placed Successfully!");
+      navigate("/dashboard/orders");
+    } catch (err) {
+      toast.error("Failed to create order.");
     }
   };
 
-  const addPackage = () => {
-    setPackages([
-      ...packages,
-      {
-        id: Date.now(),
-        count: 1,
-        length: "",
-        breadth: "",
-        height: "",
-        volWeight: "",
-        physicalWeight: "",
-      },
-    ]);
-  };
-
-  const removePackage = (id) => {
-    if (packages.length > 1) {
-      setPackages(packages.filter((p) => p.id !== id));
-    }
-  };
-
-  const inputClass =
-    "w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary";
+  const inputClass = "w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary transition-all";
 
   return (
-    <div className="space-y-6 relative min-h-screen">
-      {isPickupModalOpen && (
-        <PickupAddressModal
-          isOpen={isPickupModalOpen}
-          onClose={() => setIsPickupModalOpen(false)}
-          pickupForm={pickupForm}
-          handlePickupChange={handlePickupChange}
-          handleSavePickup={handleSavePickup}
-          loading={loading}
-          error={error}
-          inputClass={inputClass}
-        />
-      )}
+    <div className="space-y-6 relative pb-24 min-h-screen">
+      <PickupAddressModal
+        isOpen={isPickupModalOpen}
+        onClose={() => setIsPickupModalOpen(false)}
+        pickupForm={pickupForm}
+        handlePickupChange={handlePickupChange}
+        handleSavePickup={() => dispatch(createPickupAddress(pickupForm)).unwrap().then(() => setIsPickupModalOpen(false))}
+        loading={pickupLoading}
+        error={reduxError}
+        inputClass={inputClass}
+      />
+
       <div>
-        <h1 className="text-2xl font-bold text-text-main">New Order</h1>
-        <p className="text-sm text-primary mt-1">
-          <Link to="/" className="hover:underline cursor-pointer">
-            Dashboard
-          </Link>
-          <span className="text-text-muted mx-1">&gt;&gt;</span> New Order
-        </p>
+        <h1 className="text-2xl font-bold">New Order</h1>
+        <p className="text-sm text-text-muted mt-1 tracking-tight">Create a new shipment by providing the details below</p>
       </div>
-      <div className="flex items-center gap-8">
+
+      <div className="flex items-center gap-8 bg-card-bg/40 p-4 rounded-xl border border-border-subtle">
         <span className="text-sm font-medium text-text-main">Order Type *</span>
         <div className="flex items-center gap-6">
           {["B2C", "B2B", "International"].map((type) => (
-            <label
-              key={type}
-              className="flex items-center gap-2 cursor-pointer group"
-            >
-              <div className="relative flex items-center justify-center">
-                <input
-                  type="radio"
-                  name="orderType"
-                  value={type}
-                  checked={orderType === type}
-                  onChange={(e) => setOrderType(e.target.value)}
-                  className="sr-only"
-                />
-                <div
-                  className={cn(
-                    "w-5 h-5 rounded-full border-2 transition-all",
-                    orderType === type
-                      ? "border-primary"
-                      : "border-text-muted/30 group-hover:border-text-muted/50",
-                  )}
-                />
-                {orderType === type && (
-                  <div className="absolute w-2.5 h-2.5 rounded-full bg-primary" />
-                )}
+            <label key={type} className="flex items-center gap-2 cursor-pointer group">
+              <input type="radio" className="sr-only" checked={orderType === type} onChange={() => setOrderType(type)} />
+              <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", orderType === type ? "border-primary" : "border-text-muted/30 group-hover:border-primary/50")}>
+                {orderType === type && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
               </div>
               <span className="text-sm text-text-main">{type}</span>
             </label>
           ))}
         </div>
       </div>
-      <Card className="bg-card-bg border-border-subtle">
+
+      <Card className="bg-card-bg border-border-subtle overflow-visible relative">
         <CardContent className="p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-text-main">Pickup From</h2>
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <div className="relative">
-                {/* Input-style dropdown */}
-                <div
-                  onClick={() => setIsAddressDropdownOpen((prev) => !prev)}
-                  className="w-full bg-transparent border border-primary/50 rounded-lg px-4 py-3 text-sm text-text-main flex items-center justify-between cursor-pointer"
-                >
-                  <span>
-                    {selectedAddress
-                      ? `${selectedAddress.nickname}, ${selectedAddress.city}, ${selectedAddress.state} - ${selectedAddress.pincode}`
-                      : "Select pickup address"}
-                  </span>
-
-                  <ChevronDown size={18} className="text-text-muted" />
-                </div>
-
-                {/* Dropdown */}
-                {isAddressDropdownOpen && (
-                  <div className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {pickupAddresses?.length > 0 ? (
-                      pickupAddresses.map((addr) => (
-                        <div
-                          key={addr.id}
-                          onClick={() => {
-                            dispatch(setSelectedAddress(addr));
-                            setIsAddressDropdownOpen(false);
-                          }}
-                          className="px-4 py-3 hover:bg-dashboard-bg/20 cursor-pointer text-sm transition-colors duration-150"
-                        >
-                          <p className="font-medium">{addr.nickname}</p>
-                          <p className="text-xs text-text-muted">
-                            {addr.city}, {addr.state} - {addr.pincode}
-                          </p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-sm text-text-muted">
-                        No addresses found
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Keep your add button */}
-            <Button
-              onClick={() => setIsPickupModalOpen(true)}
-              className="bg-primary hover:bg-primary/90 text-black w-12 h-12 p-0 flex items-center justify-center rounded-lg"
-            >
-              <Plus size={24} />
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary"/> Pickup From</h2>
+            <Button variant="ghost" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10">
+              <Plus size={16} className="mr-1"/> Add New
             </Button>
+          </div>
+          <div className="relative">
+            {selectedAddress ? (
+              <div className="flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl animate-in fade-in zoom-in-95">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary"><MapPin size={20} /></div>
+                  <div>
+                    <p className="font-bold text-sm">{selectedAddress.nickname}</p>
+                    <p className="text-xs text-text-muted">{selectedAddress.address_line_1}, {selectedAddress.city} - {selectedAddress.pincode}</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}className="text-primary hover:bg-primary/10">Change Address</Button>
+              </div>
+            ) : (
+              <div onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle hover:border-primary/50 rounded-xl py-8 flex flex-col items-center justify-center cursor-pointer transition-all text-text-muted hover:text-primary group">
+                <MapPin size={32} className="mb-2 opacity-50 group-hover:scale-110 transition-transform" />
+                <p className="text-sm font-medium">Select a pickup location</p>
+              </div>
+            )}
+            <AnimatePresence>
+              {isAddressDropdownOpen && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                    {pickupAddresses?.map(addr => (
+                      <div key={addr.id} onClick={() => { dispatch(setSelectedAddress(addr)); setIsAddressDropdownOpen(false); }} className="flex items-center gap-3 p-3 hover:bg-primary/10 cursor-pointer rounded-lg border-b border-border-subtle/20 last:border-0"><MapPin size={16} className="text-primary" /><div><p className="text-sm font-bold">{addr.nickname}</p><p className="text-[11px] text-text-muted">{addr.city}</p></div></div>
+                    ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </CardContent>
       </Card>
-      <Card className="bg-card-bg border-border-subtle">
+
+      <Card className="bg-card-bg border-border-subtle overflow-visible">
         <CardContent className="p-6 space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-text-main">Deliver To</h2>
-            <button
-              onClick={() =>
-                setIsConsigneeDetailsVisible(!isConsigneeDetailsVisible)
-              }
-              className="text-xs font-medium text-text-main hover:underline"
-            >
-              {isConsigneeDetailsVisible
-                ? "Hide Consignee Details"
-                : "Show Consignee Details"}
-            </button>
-          </div>
-
+          <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary"/> Deliver To</h2>
+            <button onClick={() => setIsConsigneeDetailsVisible(!isConsigneeDetailsVisible)} className="text-xs text-primary font-medium hover:underline">{isConsigneeDetailsVisible ? "Hide Form" : "Show Form"}</button></div>
           <div className="relative">
-            <input
-              type="text"
-              placeholder="Search consignee by Name / Email"
-              className="w-full bg-transparent border border-primary/50 rounded-lg px-4 py-3 text-sm text-text-main focus:outline-none focus:border-primary"
-            />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
+            <input type="text" placeholder="Search consignee by Name / Email / Mobile" value={consigneeSearch} onChange={e => { setConsigneeSearch(e.target.value); if (e.target.value.length > 2) dispatch(fetchConsignees({search: e.target.value})); setShowConsigneeResults(true); }} className="w-full bg-transparent border border-primary/40 rounded-xl pl-12 pr-12 py-3.5 text-sm focus:border-primary outline-none transition-all shadow-sm" />
+            {consigneeSearch && <button onClick={clearConsignee} className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-primary"><X size={18} /></button>}
+            <AnimatePresence>
+              {showConsigneeResults && consignees.length > 0 && (
+                <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-64 overflow-y-auto p-2">
+                    {consignees.map(c => ( <div key={c.id} onClick={() => selectConsignee(c)} className="flex items-center gap-3 p-3 hover:bg-primary/10 cursor-pointer rounded-lg border-b last:border-0 border-border-subtle/20"><div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold group-hover:bg-primary group-hover:text-black transition-all">{c.name ? c.name[0].toUpperCase() : 'U'}</div><div><p className="text-sm font-bold">{c.name}</p><p className="text-[11px] text-text-muted">{c.mobile} | {c.email}</p></div></div> ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-
           {isConsigneeDetailsVisible && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-              <h3 className="text-sm font-semibold text-text-main">
-                Consignee Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Name*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Mobile*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Alternate Mobile
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Address Line 1*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Address Line 2
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    PinCode*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    City*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    State*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Name*</label><input type="text" value={consigneeData.name} onChange={e => setConsigneeData({...consigneeData, name: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Mobile*</label><input type="text" value={consigneeData.mobile} onChange={e => setConsigneeData({...consigneeData, mobile: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Alt Mobile</label><input type="text" value={consigneeData.alternate_mobile} onChange={e => setConsigneeData({...consigneeData, alternate_mobile: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Email</label><input type="email" value={consigneeData.email} onChange={e => setConsigneeData({...consigneeData, email: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="md:col-span-2 space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Address Line 1*</label><input type="text" value={consigneeData.address_line_1} onChange={e => setConsigneeData({...consigneeData, address_line_1: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="md:col-span-2 space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Address Line 2</label><input type="text" value={consigneeData.address_line_2} onChange={e => setConsigneeData({...consigneeData, address_line_2: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">PinCode*</label><input type="text" value={consigneeData.pincode} onChange={e => setConsigneeData({...consigneeData, pincode: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">City*</label><input type="text" value={consigneeData.city} onChange={e => setConsigneeData({...consigneeData, city: e.target.value, id: null})} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">State*</label><input type="text" value={consigneeData.state} onChange={e => setConsigneeData({...consigneeData, state: e.target.value, id: null})} className={inputClass} /></div>
             </div>
           )}
         </CardContent>
       </Card>
-      <Card className="bg-card-bg border-border-subtle">
+
+      <Card className="bg-card-bg border-border-subtle overflow-visible">
         <CardContent className="p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-text-main">
-            Payment Method
-          </h2>
-          <div className="flex flex-wrap items-center gap-x-12 gap-y-6">
-            <div className="flex items-center gap-8">
-              {["COD", "Prepaid", "To Pay"].map((method) => (
-                <label
-                  key={method}
-                  className="flex items-center gap-2 cursor-pointer group"
-                >
-                  <div className="relative flex items-center justify-center">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value={method}
-                      checked={paymentMethod === method}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="sr-only"
-                    />
-                    <div
-                      className={cn(
-                        "w-5 h-5 rounded-full border-2 transition-all",
-                        paymentMethod === method
-                          ? "border-primary"
-                          : "border-text-muted/30 group-hover:border-text-muted/50",
-                      )}
-                    />
-                    {paymentMethod === method && (
-                      <div className="absolute w-2.5 h-2.5 rounded-full bg-primary" />
-                    )}
-                  </div>
-                  <span className="text-sm text-text-main">{method}</span>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard size={20} className="text-primary"/> Payment Method</h2>
+          <div className="flex flex-wrap gap-8 items-end">
+            <div className="flex items-center gap-6 bg-dashboard-bg/20 p-2 rounded-xl border border-border-subtle">
+              {["Prepaid", "COD", "To Pay"].map(m => (
+                <label key={m} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-all", paymentMethod === m ? "bg-primary text-black" : "hover:bg-white/5")}>
+                  <input type="radio" className="sr-only" checked={paymentMethod === m} onChange={() => setPaymentMethod(m)} />
+                  <span className="text-sm font-bold">{m}</span>
                 </label>
               ))}
             </div>
 
-            {paymentMethod === "To Pay" && (
-              <div className="space-y-1.5 min-w-[240px] animate-in fade-in slide-in-from-left-2 duration-300">
-                <label className="text-xs font-medium text-text-muted">
-                  To Pay Amount
-                </label>
-                <input
-                  type="text"
-                  placeholder="To Pay Amount"
-                  className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                />
-              </div>
-            )}
-
-            {paymentMethod === "COD" && (
-              <div className="space-y-1.5 min-w-[240px] animate-in fade-in slide-in-from-left-2 duration-300">
-                <label className="text-xs font-medium text-text-muted">
-                  COD Amount
-                </label>
-                <input
-                  type="text"
-                  placeholder="COD Amount"
-                  className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                />
-              </div>
-            )}
+            <AnimatePresence mode="wait">
+              {paymentMethod === "COD" && (
+                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-1 min-w-[200px]">
+                  <label className="text-[10px] uppercase font-bold text-text-muted ml-1">COD Amount*</label>
+                  <input type="number" value={codAmount} onChange={e => setCodAmount(e.target.value)} className={inputClass} placeholder="0.00" />
+                </motion.div>
+              )}
+              {paymentMethod === "To Pay" && (
+                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-1 min-w-[200px]">
+                  <label className="text-[10px] uppercase font-bold text-text-muted ml-1">To Pay Amount*</label>
+                  <input type="number" value={toPayAmount} onChange={e => setToPayAmount(e.target.value)} className={inputClass} placeholder="0.00" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </CardContent>
       </Card>
+
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-text-main">
-            Product Details
-          </h2>
-
-          <div className="space-y-1.5 max-w-xs">
-            <label className="text-xs font-medium text-text-muted">
-              Order Value *
-            </label>
-            <input
-              type="text"
-              placeholder="Total Order Value"
-              className="w-full bg-dashboard-bg border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-            />
-          </div>
-
+          <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-xs text-text-muted uppercase font-bold tracking-wider">Order Value: ₹</span><span className="text-lg font-bold text-primary">{totalOrderValue.toFixed(2)}</span></div></div>
           <div className="space-y-4">
-            {products.map((product, index) => (
-              <div
-                key={product.id}
-                className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end"
-              >
-                <div className="space-y-1.5 col-span-1 md:col-span-1">
-                  <label className="text-xs font-medium text-text-muted">
-                    Product Name*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    SKU
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Unit Price*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    QTY*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Total*
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-dashboard-bg border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                    disabled
-                  />
-                </div>
-                <div className="pb-0.5">
-                  <Button
-                    onClick={() => removeProduct(product.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white flex items-center gap-2 px-4 py-2.5 rounded-lg w-full md:w-auto"
-                  >
-                    <Trash2 size={16} />
-                    <span>Delete</span>
-                  </Button>
-                </div>
+            {products.map((p) => (
+              <div key={p.id} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle shadow-sm">
+                <div className="md:col-span-1 space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Product*</label><input type="text" value={p.product_name} onChange={e => handleProductChange(p.id, 'product_name', e.target.value)} className={inputClass} placeholder="Name" /></div>
+                <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">SKU</label><input type="text" value={p.sku} onChange={e => handleProductChange(p.id, 'sku', e.target.value)} className={inputClass} placeholder="ID" /></div>
+                <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Price*</label><input type="number" value={p.unit_price} onChange={e => handleProductChange(p.id, 'unit_price', e.target.value)} className={inputClass} /></div>
+                <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">QTY*</label><input type="number" value={p.qty} onChange={e => handleProductChange(p.id, 'qty', e.target.value)} className={inputClass} /></div>
+                <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">Total</label><input type="text" value={p.total} disabled className="w-full bg-dashboard-bg border border-border-subtle rounded-lg px-4 py-2.5 text-sm" /></div>
+                <Button variant="destructive" size="icon" onClick={() => setProducts(products.filter(i => i.id !== p.id))} className="h-10 w-10 shrink-0"><Trash2 size={16}/></Button>
               </div>
             ))}
-            <Button
-              onClick={addProduct}
-              className="bg-primary hover:bg-primary/90 text-black flex items-center gap-2 px-6 py-2.5 rounded-lg"
-            >
-              <Plus size={18} />
-              <span>Add New</span>
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setProducts([...products, { id: Date.now(), product_name: "", sku: "", unit_price: "", qty: 1, total: 0 }])} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Item</Button>
           </div>
         </CardContent>
       </Card>
+
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-text-main">
-            Package Details
-          </h2>
-
-          <div className="space-y-4">
-            {packages.map((pkg, index) => (
-              <div
-                key={pkg.id}
-                className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end"
-              >
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Count
-                  </label>
-                  <input
-                    type="number"
-                    defaultValue={1}
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Length (cm)*
-                  </label>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      className="w-full bg-transparent border border-border-subtle rounded-l-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                    />
-                    <span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-3 py-2.5 text-xs text-text-muted flex items-center">
-                      cm
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Breadth (cm)*
-                  </label>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      className="w-full bg-transparent border border-border-subtle rounded-l-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                    />
-                    <span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-3 py-2.5 text-xs text-text-muted flex items-center">
-                      cm
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Height (cm)*
-                  </label>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      className="w-full bg-transparent border border-border-subtle rounded-l-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                    />
-                    <span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-3 py-2.5 text-xs text-text-muted flex items-center">
-                      cm
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Vol. Weight (Kg)*
-                  </label>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      className="w-full bg-dashboard-bg border border-border-subtle rounded-l-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                      disabled
-                    />
-                    <span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-3 py-2.5 text-xs text-text-muted flex items-center">
-                      kg
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-text-muted mt-1 whitespace-nowrap">
-                    B2C Vol. Dividend (cm): 5000
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Physical Weight (Kg)*
-                  </label>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      className="w-full bg-transparent border border-border-subtle rounded-l-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                    />
-                    <span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-3 py-2.5 text-xs text-text-muted flex items-center">
-                      kg
-                    </span>
-                  </div>
-                </div>
-                <div className="pb-0.5">
-                  <Button
-                    onClick={() => removePackage(pkg.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white flex items-center gap-2 px-4 py-2.5 rounded-lg w-full"
-                  >
-                    <Trash2 size={16} />
-                    <span>Delete</span>
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button
-              onClick={addPackage}
-              className="bg-primary hover:bg-primary/90 text-black flex items-center gap-2 px-6 py-2.5 rounded-lg"
-            >
-              <Plus size={18} />
-              <span>Add New</span>
-            </Button>
-          </div>
-
-          <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-6 flex items-center gap-6">
-            <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center text-green-500">
-              <Lock size={24} />
+          <h2 className="text-lg font-semibold">Package Details</h2>
+          {packages.map((pkg) => (
+            <div key={pkg.id} className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end border-b border-border-subtle pb-6 last:border-0 last:pb-0">
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1">Count</label><input type="number" value={pkg.count} onChange={e => handlePackageChange(pkg.id, 'count', e.target.value)} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1">L (cm)*</label><div className="flex"><input type="number" value={pkg.length_cm} onChange={e => handlePackageChange(pkg.id, 'length_cm', e.target.value)} className="w-full border border-border-subtle rounded-l-lg px-3 py-2 text-sm" /><span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-2 text-[10px] flex items-center">cm</span></div></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1">B (cm)*</label><div className="flex"><input type="number" value={pkg.breadth_cm} onChange={e => handlePackageChange(pkg.id, 'breadth_cm', e.target.value)} className="w-full border border-border-subtle rounded-l-lg px-3 py-2 text-sm" /><span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-2 text-[10px] flex items-center">cm</span></div></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1">H (cm)*</label><div className="flex"><input type="number" value={pkg.height_cm} onChange={e => handlePackageChange(pkg.id, 'height_cm', e.target.value)} className="w-full border border-border-subtle rounded-l-lg px-3 py-2 text-sm" /><span className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-2 text-[10px] flex items-center">cm</span></div></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1">Vol (kg)</label><input type="text" value={pkg.vol_weight_kg} disabled className="w-full bg-dashboard-bg border border-border-subtle rounded-lg px-2 py-2 text-sm" /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1">Phys (kg)*</label><input type="number" value={pkg.physical_weight_kg} onChange={e => handlePackageChange(pkg.id, 'physical_weight_kg', e.target.value)} className="w-full border border-border-subtle rounded-lg px-2 py-2 text-sm" /></div>
+              <Button variant="destructive" size="icon" onClick={() => setPackages(packages.filter(i => i.id !== pkg.id))} className="w-10 h-10 shrink-0"><Trash2 size={16} /></Button>
             </div>
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <p className="text-lg font-bold text-text-main">
-                  Applicable Weight: 0.00 kg
-                </p>
-                <p className="text-sm text-text-main">
-                  No Of Boxes * <span className="font-bold">1</span>
-                </p>
-              </div>
-              <div className="flex items-center">
-                <p className="text-sm text-text-main">
-                  Total Weight: <span className="font-bold">0.00</span>{" "}
-                  <span className="text-green-500">kg</span>
-                </p>
-              </div>
-              <div className="flex items-center">
-                <p className="text-sm text-text-main">
-                  Total Volumetric Wt: <span className="font-bold">0.00</span>{" "}
-                  <span className="text-green-500">kg</span>
-                </p>
+          ))}
+          <div className="flex flex-col md:flex-row justify-between items-center bg-green-500/10 border border-green-500/20 rounded-xl p-6 gap-4">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="w-10 h-10 bg-green-500 text-white rounded-lg flex items-center justify-center shrink-0"><Lock size={20} /></div>
+              <div className="grid grid-cols-3 gap-6 flex-1">
+                <div><p className="text-[10px] uppercase font-bold text-text-muted">Applicable Weight</p><p className="text-lg font-bold text-green-500">{weightSummary.applicable} kg</p></div>
+                <div><p className="text-[10px] uppercase font-bold text-text-muted">Volumetric</p><p className="text-xs font-bold text-text-main">{weightSummary.totalVol} kg</p></div>
+                <div><p className="text-[10px] uppercase font-bold text-text-muted">Physical</p><p className="text-xs font-bold text-text-main">{weightSummary.totalPhys} kg</p></div>
               </div>
             </div>
+            <Button variant="outline" size="sm" onClick={() => setPackages([...packages, { id: Date.now(), count: 1, length_cm: "", breadth_cm: "", height_cm: "", vol_weight_kg: 0, physical_weight_kg: "" }])} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Package</Button>
           </div>
         </CardContent>
       </Card>
+
       <Card className="bg-card-bg border-border-subtle">
-        <CardContent className="p-0">
-          <button
-            onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)}
-            className="w-full flex items-center justify-between p-6 text-lg font-semibold text-text-main hover:bg-text-muted/5 transition-colors"
-          >
-            <span>Other Details</span>
-            {isOtherDetailsOpen ? (
-              <ChevronUp size={20} />
-            ) : (
-              <ChevronDown size={20} />
-            )}
-          </button>
-          {isOtherDetailsOpen && (
-            <div className="p-6 pt-0 border-t border-border-subtle animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    GST Number
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    E-Way Bill Number
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
+        <button onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)} className="w-full flex justify-between p-6 items-center hover:bg-white/5 transition-colors rounded-t-xl">
+          <h2 className="text-lg font-semibold">Other Details</h2>
+          {isOtherDetailsOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        </button>
+        {isOtherDetailsOpen && (
+          <CardContent className="p-6 pt-0 border-t border-border-subtle/20 animate-in slide-in-from-top-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">GST Number</label><input type="text" value={otherDetails.gst_number} onChange={e => setOtherDetails({...otherDetails, gst_number: e.target.value})} className={inputClass} placeholder="Enter GST Number" /></div>
+              <div className="space-y-1"><label className="text-[10px] uppercase font-bold text-text-muted ml-1">E-Way Bill Number</label><input type="text" value={otherDetails.eway_bill_number} onChange={e => setOtherDetails({...otherDetails, eway_bill_number: e.target.value})} className={inputClass} placeholder="Enter E-Way Bill Number" /></div>
             </div>
-          )}
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
-      <div className="flex justify-end">
-        <Button className="bg-primary hover:bg-primary/90 text-black flex items-center gap-2 px-8 py-3 rounded-lg font-semibold shadow-lg shadow-primary/20">
-          <ShoppingBag size={20} />
-          <span>Submit</span>
+
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
+        <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
+          {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> Complete Order</>}
         </Button>
       </div>
     </div>
