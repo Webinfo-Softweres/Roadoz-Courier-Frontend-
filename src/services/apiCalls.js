@@ -228,3 +228,8 @@ export const createOrderApi = async (data) => {
   const res = await API.post("/orders", data);
   return res.data;
 };
+
+export const fetchOrdersApi = async (params) => {
+  const res = await API.get("/orders", { params });
+  return res.data;
+};
