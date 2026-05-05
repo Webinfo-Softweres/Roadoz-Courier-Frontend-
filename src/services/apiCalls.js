@@ -233,3 +233,29 @@ export const fetchOrdersApi = async (params) => {
   const res = await API.get("/orders", { params });
   return res.data;
 };
+
+export const fetchWalletTransactionsApi = async (params) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v != null && v !== "" && v !== "All")
+  );
+  const res = await API.get(ENDPOINTS.WALLET, { params: cleanParams });
+  return res.data;
+};
+
+export const fetchRemittanceApi = async (params) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v != null && v !== "")
+  );
+  const res = await API.get(ENDPOINTS.REMITTANCE, { params: cleanParams });
+  return res.data;
+};
+
+export const fetchInvoicesApi = async (params) => {
+  const res = await API.get(ENDPOINTS.INVOICES, { params });
+  return res.data;
+};
+
+export const fetchInvoiceByIdApi = async (id) => {
+  const res = await API.get(`${ENDPOINTS.INVOICES}/${id}`);
+  return res.data;
+};
