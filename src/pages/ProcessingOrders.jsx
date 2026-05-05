@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Calendar,
   RotateCcw,
@@ -27,8 +28,13 @@ import { generateInvoicePDF } from "../lib/invoiceGenerator";
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchOrders } from "../redux/orderSlice";
+import OrderDetailsModal from "../components/modals/OrderDetailsModal";
 
 export function ProcessingOrders() {
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrders, setSelectedOrders] = useState([]); // for table selection
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [filters, setFilters] = useState({
     dateRange: "",
     orderId: "",
@@ -54,7 +60,10 @@ export function ProcessingOrders() {
     { name: "Lost", count: 0, path: "/lost" },
   ];
 
-  const [activeTab, setActiveTab] = useState("Processing");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const activeStatus = searchParams.get("status") || "processing";
+
   const tabStatusMap = {
     Processing: "processing",
     "All Orders": "",
@@ -71,22 +80,14 @@ export function ProcessingOrders() {
   };
 
   const handleTabClick = (tabName) => {
-    setActiveTab(tabName);
-
     const status = tabStatusMap[tabName];
 
-    dispatch(
-      fetchOrders({
-        page: 1,
-        limit: filters.limit,
-        status: status,
-        order_id: filters.orderId,
-        awb: filters.awb,
-        buyer_name: filters.buyerName,
-        payment_method: filters.paymentMethod,
-        date_range: filters.dateRange,
-      }),
-    );
+    if (!status) {
+      // All Orders
+      setSearchParams({ status: "all" }); // force change
+    } else {
+      setSearchParams({ status });
+    }
   };
 
   const statusList = [
@@ -119,33 +120,55 @@ export function ProcessingOrders() {
     });
   };
 
-  const isProcessing = activeTab === "Processing";
+  const statusToTabMap = {
+    all: "All Orders",
+    processing: "Processing",
+    manifested: "Manifested",
+    in_transit: "In Transit",
+    ndr: "NDR",
+    ofd: "OFD",
+    delivered: "Delivered",
+    rto_in_transit: "RTO In Transit",
+    rto_delivered: "RTO Delivered",
+    returned: "Returned",
+    cancelled: "Cancelled",
+    lost: "Lost",
+  };
+
+  const activeTab = statusToTabMap[activeStatus] || "Processing";
+
+  const isProcessing = activeStatus === "processing";
 
   const dispatch = useDispatch();
 
   const { orders, totalOrders, loading } = useSelector((state) => state.orders);
+
   useEffect(() => {
     console.log("Orders:", orders);
   }, [orders]);
 
   useEffect(() => {
-    const status = tabStatusMap[activeTab];
+    let statusFromUrl = searchParams.get("status");
+
+    if (statusFromUrl === "all") {
+      statusFromUrl = ""; // backend expects empty
+    }
 
     dispatch(
       fetchOrders({
         page: 1,
         limit: filters.limit,
-        status,
+        status: statusFromUrl || "",
       }),
     );
-  }, [dispatch, activeTab]);
+  }, [searchParams, filters.limit]);
 
   const handleSearch = () => {
     dispatch(
       fetchOrders({
         page: 1,
         limit: filters.limit,
-        status: filters.status || tabStatusMap[activeTab],
+        status: filters.status || searchParams.get("status") || "processing",
         order_id: filters.orderId,
         awb: filters.awb,
         buyer_name: filters.buyerName,
@@ -211,7 +234,53 @@ export function ProcessingOrders() {
                   )}
                   <Button
                     className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
-                    onClick={() => downloadInvoiceExcel(orders[0])}
+                    onClick={() => {
+                      const getOrderId = (order) => order.id;
+
+                      // ✅ filter selected rows
+                      const selected = orders.filter((o) =>
+                        selectedOrders.includes(getOrderId(o)),
+                      );
+
+                      // ❌ if nothing selected → stop
+                      if (selected.length === 0) {
+                        alert("Please select at least one order");
+                        return;
+                      }
+
+                      // ✅ map to your excel format
+                      const mappedOrders = selected.map((order) => ({
+                        transactionId: order.id,
+                        id: order.order_number,
+                        customer: {
+                          name: order.consignee?.name || "N/A",
+                          phone: order.consignee?.mobile || "N/A",
+                        },
+                        shipment: {
+                          id: order.order_shipment || "",
+                          courier: order.courier_name || "",
+                        },
+                        route: {
+                          from: order.pickup_address?.city || "",
+                          fromPin: order.pickup_address?.pincode || "",
+                          to: order.consignee?.city || "",
+                          toPin: order.consignee?.pincode || "",
+                        },
+                        payment: {
+                          method: order.payment_method || "",
+                          total: order.order_value || 0,
+                        },
+                        weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
+                        dims: `${order.packages?.[0]?.length_cm || 0}×${order.packages?.[0]?.breadth_cm || 0}×${order.packages?.[0]?.height_cm || 0}`,
+                        created: order.created_at,
+                        order: {
+                          id: order.order_number,
+                        },
+                      }));
+
+                      // export ONLY selected
+                      downloadInvoiceExcel(mappedOrders);
+                    }}
                   >
                     <Download size={16} /> Export
                   </Button>
@@ -370,6 +439,7 @@ export function ProcessingOrders() {
                 </Button>
                 <button
                   onClick={() => {
+                    // 1. Reset local filters
                     setFilters({
                       dateRange: "",
                       orderId: "",
@@ -380,6 +450,10 @@ export function ProcessingOrders() {
                       limit: 25,
                     });
 
+                    // 2. Clear URL params (VERY IMPORTANT)
+                    setSearchParams({});
+
+                    // 3. Fetch fresh data
                     dispatch(fetchOrders({ page: 1, limit: 25 }));
                   }}
                   className="text-xs font-bold text-primary flex items-center gap-1 mt-2"
@@ -414,7 +488,21 @@ export function ProcessingOrders() {
               <thead>
                 <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
                   <th className="px-6 py-4 w-10 text-center">
-                    <input type="checkbox" className="w-4 h-4" />
+                    <input
+                      type="checkbox"
+                      checked={
+                        orders.length > 0 &&
+                        selectedOrders.length === orders.length
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedOrders(orders.map((o) => o.id));
+                        } else {
+                          setSelectedOrders([]);
+                        }
+                      }}
+                      className="w-4 h-4"
+                    />
                   </th>
                   {isProcessing && (
                     <th className="px-6 py-4">Transaction ID</th>
@@ -458,14 +546,21 @@ export function ProcessingOrders() {
                     },
                     payment: {
                       method: order.payment_method || "N/A",
-                      total: `₹${order.order_value || 0}`,
-                      type: order.payment_method || "N/A",
+
+                      total: `₹${order.order_value || 0}`, // always total order value
+
+                      payable:
+                        order.payment_method === "COD"
+                          ? `₹${order.cod_amount || 0}`
+                          : "Paid",
+
                       channel: order.order_type || "N/A",
                     },
                     order: {
                       id: order.order_number || "N/A",
                       channel: order.order_type || "N/A",
                     },
+                    items: order.items || [],
                     weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
                     dims: `${
                       order.packages?.[0]?.length_cm || 0
@@ -483,7 +578,20 @@ export function ProcessingOrders() {
                       className="hover:bg-dashboard-bg/30 transition-colors"
                     >
                       <td className="px-6 py-6 text-center">
-                        <input type="checkbox" className="w-4 h-4" />
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.includes(order.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedOrders([...selectedOrders, order.id]);
+                            } else {
+                              setSelectedOrders(
+                                selectedOrders.filter((id) => id !== order.id),
+                              );
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
                       </td>
 
                       {isProcessing && (
@@ -550,10 +658,9 @@ export function ProcessingOrders() {
                         <p className="font-bold text-red-500 uppercase tracking-tighter">
                           {mappedOrder.payment.method}
                         </p>
+
                         <p className="text-text-muted">
-                          {isProcessing
-                            ? mappedOrder.payment.type
-                            : `Total: ${mappedOrder.payment.total}`}
+                          Total: {mappedOrder.payment.total}
                         </p>
                       </td>
 
@@ -597,6 +704,12 @@ export function ProcessingOrders() {
                             [Truck, Eye, Copy, Edit, Printer].map((Icon, i) => (
                               <button
                                 key={i}
+                                onClick={() => {
+                                  if (Icon === Eye) {
+                                    setSelectedOrder(mappedOrder);
+                                    setIsModalOpen(true);
+                                  }
+                                }}
                                 className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
                               >
                                 <Icon size={14} />
@@ -604,10 +717,21 @@ export function ProcessingOrders() {
                             ))
                           ) : (
                             <>
-                              <button className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95">
+                              <button
+                                onClick={() =>
+                                  downloadInvoiceExcel(mappedOrder)
+                                }
+                                className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
+                              >
                                 <Download size={14} />
                               </button>
-                              <button className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors">
+                              <button
+                                onClick={() => {
+                                  setSelectedOrder(mappedOrder);
+                                  setIsModalOpen(true);
+                                }}
+                                className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                              >
                                 <Eye size={14} />
                               </button>
                               <button className="p-1.5 text-text-muted hover:text-text-main">
@@ -626,6 +750,11 @@ export function ProcessingOrders() {
           <Pagination />
         </CardContent>
       </Card>
+      <OrderDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        order={selectedOrder}
+      />
     </div>
   );
 }
