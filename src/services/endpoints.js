@@ -10,5 +10,11 @@ export const ENDPOINTS = {
   FRANCHISE: "/franchise",
   USERS: "/rbac/users",
   ROLES: "/rbac/roles",
+  WALLET: "/wallet/transactions", 
+  REMITTANCE: "/remittance",
+  INVOICES: "/invoices",
+
+
+
   
 };

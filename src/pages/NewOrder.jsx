@@ -188,8 +188,12 @@ export default function NewOrder() {
 
       <div>
         <h1 className="text-2xl font-bold">New Order</h1>
-        <p className="text-sm text-text-muted mt-1 tracking-tight">Create a new shipment by providing the details below</p>
-      </div>
+<p className="text-xs md:text-sm text-primary mt-1 font-medium">
+            <Link to="/" className="hover:underline">
+              Dashboard
+            </Link>
+            <span className="text-text-muted mx-2">&gt;&gt;</span> New Order
+          </p>      </div>
 
       <div className="flex items-center gap-8 bg-card-bg/40 p-4 rounded-xl border border-border-subtle">
         <span className="text-sm font-medium text-text-main">Order Type *</span>
