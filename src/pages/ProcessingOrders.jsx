@@ -145,7 +145,7 @@ export function ProcessingOrders() {
       fetchOrders({
         page: 1,
         limit: filters.limit,
-        status: tabStatusMap[activeTab], // ✅ important
+        status: filters.status || tabStatusMap[activeTab],
         order_id: filters.orderId,
         awb: filters.awb,
         buyer_name: filters.buyerName,
@@ -337,12 +337,18 @@ export function ProcessingOrders() {
                         onClick={() =>
                           setFilters({
                             ...filters,
-                            status: s === "All" ? "" : s,
+                            status:
+                              s === "All"
+                                ? ""
+                                : s.toLowerCase().replace(/\s+/g, "_"),
                           })
                         }
                         className={cn(
                           "px-2 py-1 rounded cursor-pointer transition-colors",
-                          filters.status === s ||
+                          filters.status ===
+                            (s === "All"
+                              ? ""
+                              : s.toLowerCase().replace(/\s+/g, "_")) ||
                             (s === "All" && !filters.status)
                             ? "bg-gray-200 font-bold text-black"
                             : "text-text-muted hover:bg-gray-50",
