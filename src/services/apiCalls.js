@@ -224,6 +224,16 @@ export const fetchConsigneesApi = async (params) => {
   return res.data;
 };
 
+export const updateConsigneeApi = async (id, data) => {
+  const res = await API.put(`/orders/consignees/${id}`, data);
+  return res.data;
+};
+
+export const deleteConsigneeApi = async (id) => {
+  const res = await API.delete(`/orders/consignees/${id}`);
+  return res.data;
+};
+
 export const createOrderApi = async (data) => {
   const res = await API.post("/orders", data);
   return res.data;
@@ -236,7 +246,9 @@ export const fetchOrdersApi = async (params) => {
 
 export const fetchWalletTransactionsApi = async (params) => {
   const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([_, v]) => v != null && v !== "" && v !== "All")
+    Object.entries(params).filter(
+      ([_, v]) => v != null && v !== "" && v !== "All",
+    ),
   );
   const res = await API.get(ENDPOINTS.WALLET, { params: cleanParams });
   return res.data;
@@ -244,7 +256,7 @@ export const fetchWalletTransactionsApi = async (params) => {
 
 export const fetchRemittanceApi = async (params) => {
   const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([_, v]) => v != null && v !== "")
+    Object.entries(params).filter(([_, v]) => v != null && v !== ""),
   );
   const res = await API.get(ENDPOINTS.REMITTANCE, { params: cleanParams });
   return res.data;

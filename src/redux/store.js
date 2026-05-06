@@ -9,6 +9,7 @@ import orderReducer from "./orderSlice";
 import walletReducer from "./walletSlice";
 import remittanceReducer from "./remittanceSlice";
 import invoiceReducer from "./invoiceSlice";
+import consigneeReducer from "./consigneeSlice";
 
 export const store = configureStore({
   reducer: {
@@ -18,6 +19,7 @@ export const store = configureStore({
     users: userReducer,
     roles: roleReducer,
     permissions: permissionReducer,
+    consignees: consigneeReducer,
     orders: orderReducer,
     wallet: walletReducer,
     remittance: remittanceReducer,
