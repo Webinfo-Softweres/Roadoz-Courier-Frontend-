@@ -7,7 +7,7 @@ import {
     StopCircle, CheckCircle2, MapPin, PackageSearch, Scan
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { Html5Qrcode } from "html5-qrcode"; // Using the core class for better control
+import { Html5Qrcode } from "html5-qrcode";
 import {
     scanOrderApi,
     fetchTodayScannedOrdersApi,
@@ -21,7 +21,11 @@ export default function ScannedOrders() {
     const [isScanning, setIsScanning] = useState(false);
     const [location, setLocation] = useState({ lat: null, lng: null });
     const [pagination, setPagination] = useState({ page: 1, total: 0, total_pages: 1 });
-    const scannerRef = useRef(null); // To hold the scanner instance
+    
+    // Refs for Scanner Logic
+    const scannerRef = useRef(null);
+    const inputRef = useRef(null);
+    const lastScannedRef = useRef("");
 
     const [filters, setFilters] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -46,7 +50,14 @@ export default function ScannedOrders() {
         getGeoLocation();
     }, [getGeoLocation]);
 
-    // 2. Load Table Data
+    // 2. Auto-focus for USB Handheld Scanners
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, []);
+
+    // 3. Load Table Data
     const loadScannedOrders = useCallback(async () => {
         setLoading(true);
         try {
@@ -69,34 +80,41 @@ export default function ScannedOrders() {
         loadScannedOrders();
     }, [loadScannedOrders]);
 
-    // 3. Scan Process Logic
+    // 4. Unified Scan Process Logic (Camera & USB)
     const handleScanSuccess = async (decodedText) => {
-        // Prevent multiple scans of the same item in a single second
-        if (loading) return;
+        if (!decodedText || loading) return;
+
+        // Prevent duplicate scans within 1.5 seconds (debouncing)
+        if (lastScannedRef.current === decodedText) return;
+        lastScannedRef.current = decodedText;
 
         try {
             toast.loading(`Processing ${decodedText}...`, { id: 'scan-act' });
 
-            // Step 1: Hit Scan API
+            // API: Change Order Status
             await scanOrderApi(decodedText);
 
-            // Step 2: Update GPS Location if available
+            // API: Update Location if GPS is on
             if (location.lat) {
                 await getOrderPincodeApi(decodedText, location.lat, location.lng);
             }
 
             toast.success(`Order ${decodedText} Verified`, { id: 'scan-act' });
 
-            // Vibrate mobile on success
             if (navigator.vibrate) navigator.vibrate(200);
 
-            loadScannedOrders();
+            loadScannedOrders(); // Refresh table
         } catch (error) {
             toast.error(error.response?.data?.message || "Invalid Barcode", { id: 'scan-act' });
         }
+
+        // Reset the "last scanned" lock after a delay
+        setTimeout(() => {
+            lastScannedRef.current = "";
+        }, 1500);
     };
 
-    // 4. Camera Control
+    // 5. Camera Toggle Logic
     const toggleScanner = async () => {
         if (isScanning) {
             if (scannerRef.current) {
@@ -110,24 +128,17 @@ export default function ScannedOrders() {
 
         setIsScanning(true);
 
-        // Wait for DOM to render (#reader)
         setTimeout(async () => {
             try {
                 const html5QrCode = new Html5Qrcode("reader");
                 scannerRef.current = html5QrCode;
 
-                // 🔥 Get cameras
                 const devices = await Html5Qrcode.getCameras();
+                if (!devices || devices.length === 0) throw new Error("No camera found");
 
-                if (!devices || devices.length === 0) {
-                    throw new Error("No camera found");
-                }
-
-                // ✅ Prefer back camera on mobile
+                // Prefer back camera on mobile devices
                 let cameraId = devices[0].id;
-                const backCam = devices.find(d =>
-                    d.label.toLowerCase().includes("back")
-                );
+                const backCam = devices.find(d => d.label.toLowerCase().includes("back"));
                 if (backCam) cameraId = backCam.id;
 
                 await html5QrCode.start(
@@ -136,24 +147,19 @@ export default function ScannedOrders() {
                         fps: 10,
                         qrbox: { width: 250, height: 120 },
                         aspectRatio: 1.777,
-                        videoConstraints: {
-                            facingMode: "environment"
-                        }
                     },
-                    (decodedText) => {
-                        handleScanSuccess(decodedText);
-                    },
-                    () => { }
+                    (decodedText) => handleScanSuccess(decodedText),
+                    () => { } // silent ignore on failed frames
                 );
-
             } catch (err) {
                 console.error("Camera error:", err);
                 toast.error("Camera failed: " + err.message);
                 setIsScanning(false);
             }
-        }, 300); // 🔥 important delay
+        }, 300);
     };
 
+    // Cleanup on page close
     useEffect(() => {
         return () => {
             if (scannerRef.current) {
@@ -177,6 +183,20 @@ export default function ScannedOrders() {
 
     return (
         <div className="space-y-6 p-4 lg:p-6 bg-dashboard-bg min-h-screen">
+            {/* HIDDEN INPUT FOR USB SCANNERS */}
+            <input
+                ref={inputRef}
+                type="text"
+                className="opacity-0 absolute pointer-events-none top-0 left-0"
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                        handleScanSuccess(e.target.value);
+                        e.target.value = ""; // Clear for next scan
+                    }
+                }}
+                autoFocus
+            />
+
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -184,7 +204,7 @@ export default function ScannedOrders() {
                         <Scan className="text-primary" /> Speed Scanner
                     </h1>
                     <p className="text-xs text-text-muted mt-1 uppercase tracking-wider">
-                        Logistics Verification Portal
+                        Capture Barcodes via Camera or USB Handheld
                     </p>
                 </div>
 
@@ -199,22 +219,19 @@ export default function ScannedOrders() {
                         onClick={toggleScanner}
                         className={`${isScanning ? "bg-red-500 hover:bg-red-600" : "bg-primary hover:bg-primary/90"} text-black font-bold h-11 px-6 rounded-xl transition-all shadow-lg flex items-center gap-2`}
                     >
-                        {isScanning ? <><StopCircle size={20} /> Stop Scanner</> : <><Maximize size={20} /> Start Camera</>}
+                        {isScanning ? <><StopCircle size={20} /> Stop Camera</> : <><Maximize size={20} /> Start Camera</>}
                     </Button>
                 </div>
             </div>
 
-            {/* Active Scanner UI */}
+            {/* Active Camera UI */}
             {isScanning && (
                 <Card className="border-2 border-primary border-dashed bg-black overflow-hidden relative">
                     <CardContent className="p-0 flex flex-col items-center">
-                        <div
-                            id="reader"
-                            className="w-full min-h-[300px] bg-black flex items-center justify-center"
-                        ></div>
+                        <div id="reader" className="w-full min-h-[300px] bg-black flex items-center justify-center"></div>
                         <div className="absolute bottom-4 left-0 right-0 text-center">
                             <span className="bg-primary/90 text-black px-4 py-1 rounded-full text-xs font-bold animate-pulse">
-                                READY TO SCAN BARCODE
+                                CAMERA SCANNER ACTIVE
                             </span>
                         </div>
                     </CardContent>
@@ -268,10 +285,10 @@ export default function ScannedOrders() {
                                 <tr className="bg-dashboard-bg/80 text-text-muted text-[10px] font-black uppercase tracking-tighter border-b border-border-subtle">
                                     <th className="px-6 py-4">Order Details</th>
                                     <th className="px-6 py-4">Consignee</th>
-                                    <th className="px-6 py-4">Dimensions</th>
+                                    <th className="px-6 py-4">Box Info</th>
                                     <th className="px-6 py-4">Weight</th>
-                                    <th className="px-6 py-4">Current Status</th>
-                                    <th className="px-6 py-4">Timestamp</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Time</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border-subtle">
@@ -287,7 +304,7 @@ export default function ScannedOrders() {
                                                 <div className="text-[10px] text-text-muted italic">Verified Consignee</div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                                <div className="flex flex-wrap gap-1 max-w-[150px]">
                                                     {order.packages?.map((pkg, i) => (
                                                         <span key={i} className="text-[9px] bg-dashboard-bg border border-border-subtle px-1.5 py-0.5 rounded text-text-muted">
                                                             {pkg.length_cm}x{pkg.breadth_cm}x{pkg.height_cm}cm
@@ -317,7 +334,7 @@ export default function ScannedOrders() {
                                                 <PackageSearch size={64} className="text-text-muted" />
                                                 <div className="space-y-1">
                                                     <p className="text-xl font-bold text-text-main">No Scanned Items</p>
-                                                    <p className="text-xs uppercase tracking-widest">Waiting for barcode input...</p>
+                                                    <p className="text-xs uppercase tracking-widest">USB Scanner ready or use Start Camera</p>
                                                 </div>
                                             </div>
                                         </td>
