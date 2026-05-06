@@ -5,6 +5,7 @@ import { Download, Plus, X, RotateCcw, Edit, Trash2 } from "lucide-react";
 import Pagination from "../components/ui/Pagination";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../lib/utils";
+import { downloadConsigneeExcel } from "../lib/downloadConsigneeExcel";
 import { Link } from "react-router-dom";
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -35,9 +36,13 @@ export function Consignees() {
     name: "",
     mobile: "",
     email: "",
+    pincode: "",
+    status: "All",
     limit: 25,
     page: 1,
   });
+
+  const [selectedRows, setSelectedRows] = useState([]);
 
   const dispatch = useDispatch();
 
@@ -70,20 +75,27 @@ export function Consignees() {
   };
 
   const handleSearch = () => {
-    const search = filters.name || filters.mobile || filters.email || "";
+    const search =
+      filters.name || filters.mobile || filters.email || filters.pincode || "";
 
     dispatch(
       fetchConsignees({
         page: filters.page,
         limit: filters.limit,
         search,
+        status:
+          filters.status !== "All" ? filters.status.toLowerCase() : undefined,
       }),
     );
   };
-  
+
   const clearFilters = () => {
     setFilters({
-      search: "",
+      name: "",
+      mobile: "",
+      email: "",
+      pincode: "",
+      status: "All",
       limit: 25,
       page: 1,
     });
@@ -132,7 +144,28 @@ export function Consignees() {
     }
   };
 
-  const toggleStatus = () => {};
+  const toggleStatus = async (consignee) => {
+    try {
+      await dispatch(
+        updateConsignee({
+          id: consignee.id,
+          data: {
+            ...consignee,
+            status: consignee.status === "active" ? "inactive" : "active",
+          },
+        }),
+      ).unwrap();
+
+      dispatch(
+        fetchConsignees({
+          page: filters.page,
+          limit: filters.limit,
+        }),
+      );
+    } catch (error) {
+      console.log(error);
+    }
+  };
 
   const handleEdit = (consignee) => {
     setEditingConsignee(consignee);
@@ -161,6 +194,31 @@ export function Consignees() {
     }
   };
 
+  const handleSelectRow = (id) => {
+    setSelectedRows((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedRows.length === consignees.length) {
+      setSelectedRows([]);
+    } else {
+      setSelectedRows(consignees.map((c) => c.id));
+    }
+  };
+
+  const handleExport = () => {
+    const selectedData = consignees.filter((c) => selectedRows.includes(c.id));
+
+    if (selectedData.length === 0) {
+      alert("Please select at least one consignee");
+      return;
+    }
+
+    downloadConsigneeExcel(selectedData);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -186,7 +244,10 @@ export function Consignees() {
               >
                 <Plus size={14} /> Add New
               </Button>
-              <Button className="bg-primary hover:bg-primary/90 text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2">
+              <Button
+                onClick={handleExport}
+                className="bg-primary hover:bg-primary/90 text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2"
+              >
                 <Download size={14} /> Export
               </Button>
             </div>
@@ -257,6 +318,9 @@ export function Consignees() {
 
                 <input
                   type="text"
+                  name="pincode"
+                  value={filters.pincode}
+                  onChange={handleFilterChange}
                   placeholder="Pincode"
                   className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
                 />
@@ -267,7 +331,12 @@ export function Consignees() {
                   Status:
                 </label>
 
-                <select className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary appearance-none">
+                <select
+                  name="status"
+                  value={filters.status}
+                  onChange={handleFilterChange}
+                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary appearance-none"
+                >
                   <option>All</option>
                   <option>Active</option>
                   <option>Inactive</option>
@@ -310,24 +379,39 @@ export function Consignees() {
               </div>
             </div>
           </div>
-          <div className="overflow-x-auto overflow-y-visible pb-3 custom-scrollbar">
-            <table className="min-w-full text-left border-collapse">
-              <thead className="bg-dashboard-bg/50 border-y border-border-subtle sticky top-0 z-10">
-                <tr className="text-text-muted text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">
-                  <th className="px-4 py-3 min-w-[90px]">Id</th>
-                  <th className="px-4 py-3 min-w-[160px]">Name</th>
-                  <th className="px-4 py-3 min-w-[230px]">Contact</th>
-                  <th className="px-4 py-3 min-w-[220px]">Address 1</th>
-                  <th className="px-4 py-3 min-w-[220px]">Address 2</th>
-                  <th className="px-4 py-3 min-w-[100px]">Pincode</th>
-                  <th className="px-4 py-3 min-w-[120px]">City</th>
-                  <th className="px-4 py-3 min-w-[140px]">State</th>
-                  <th className="px-4 py-3 text-center min-w-[100px]">
-                    Status
+          <div className="overflow-x-hidden overflow-y-visible border border-border-subtle">
+            <table className="w-full border-collapse">
+              <thead className="bg-dashboard-bg/60 border-b border-border-subtle">
+                <tr className="text-text-muted text-[12px] font-bold uppercase">
+                  <th className="py-3 px-4 text-left w-[10%]">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={
+                          consignees.length > 0 &&
+                          selectedRows.length === consignees.length
+                        }
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 accent-primary cursor-pointer"
+                      />
+
+                      <span>ID</span>
+                    </div>
                   </th>
-                  <th className="px-4 py-3 text-center min-w-[120px]">
-                    Actions
-                  </th>
+
+                  <th className="py-3 px-4 text-left w-[16%]">Name</th>
+
+                  <th className="py-3 px-4 text-left w-[19%]">Contact</th>
+
+                  <th className="py-3 px-4 text-left w-[24%]">Address</th>
+
+                  <th className="py-3 px-4 text-left w-[12%]">Location</th>
+
+                  <th className="py-3 px-4 text-left w-[8%]">Pin</th>
+
+                  <th className="py-3 px-4 text-center w-[6%]">Status</th>
+
+                  <th className="py-3 px-4 text-center w-[5%]">Action</th>
                 </tr>
               </thead>
 
@@ -337,63 +421,74 @@ export function Consignees() {
                     key={c.id}
                     className="hover:bg-dashboard-bg/30 transition-colors"
                   >
-                    <td className="px-4 py-4 text-xs text-text-main font-medium whitespace-nowrap">
-                      #{c.id?.slice(0, 8)}
+                    <td className="py-3 px-4 align-top">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.includes(c.id)}
+                          onChange={() => handleSelectRow(c.id)}
+                          className="w-4 h-4 accent-primary cursor-pointer"
+                        />
+
+                        <span className="text-[14px] font-semibold text-text-main whitespace-nowrap">
+                          #{c.id?.slice(0, 6)}
+                        </span>
+                      </div>
                     </td>
 
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-text-main">
+                    <td className="py-3 px-4 align-top">
+                      <div className="leading-[18px]">
+                        <p className="text-[15px] font-semibold text-text-main">
                           {c.name}
-                        </span>
-
-                        {c.alternate_mobile && (
-                          <span className="text-[11px] text-text-muted mt-1">
-                            Alt: {c.alternate_mobile}
-                          </span>
-                        )}
+                        </p>
                       </div>
                     </td>
 
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-text-main">
+                    <td className="py-3 px-4 align-top">
+                      <div className="leading-[18px]">
+                        <p className="text-[15px] font-semibold text-text-main">
                           {c.mobile}
-                        </span>
+                        </p>
 
-                        <span className="text-xs text-text-muted break-all">
+                        <p className="text-[13px] text-text-muted break-all">
                           {c.email || "No Email"}
-                        </span>
+                        </p>
                       </div>
                     </td>
 
-                    <td className="px-4 py-4 text-xs text-text-muted leading-5">
-                      {c.address_line_1 || "-"}
+                    <td className="py-3 px-4 align-top">
+                      <div className="text-[13px] text-text-muted leading-[20px]">
+                        <p>{c.address_line_1 || "-"}</p>
+
+                        {c.address_line_2 && <p>{c.address_line_2}</p>}
+                      </div>
                     </td>
 
-                    <td className="px-4 py-4 text-xs text-text-muted leading-5">
-                      {c.address_line_2 || "-"}
+                    <td className="py-3 px-4 align-top">
+                      <div className="leading-[20px]">
+                        <p className="text-[15px] font-medium text-text-main">
+                          {c.city || "-"}
+                        </p>
+
+                        <p className="text-[13px] text-text-muted">
+                          {c.state || "-"}
+                        </p>
+                      </div>
                     </td>
 
-                    <td className="px-4 py-4 text-sm text-text-main">
-                      {c.pincode}
+                    <td className="py-3 px-4 align-top">
+                      <span className="text-[15px] font-medium text-text-main">
+                        {c.pincode}
+                      </span>
                     </td>
 
-                    <td className="px-4 py-4 text-sm text-text-main">
-                      {c.city}
-                    </td>
-
-                    <td className="px-4 py-4 text-sm text-text-main">
-                      {c.state}
-                    </td>
-
-                    <td className="px-4 py-4">
+                    <td className="py-3 px-4 align-top">
                       <div className="flex flex-col items-center gap-1">
                         <button
-                          onClick={() => toggleStatus(c.id)}
+                          onClick={() => toggleStatus(c)}
                           className={cn(
-                            "relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none",
-                            c.status
+                            "relative inline-flex h-5 w-10 items-center rounded-full transition-colors",
+                            c.status === "active"
                               ? "bg-green-500"
                               : "bg-dashboard-bg border border-border-subtle",
                           )}
@@ -401,36 +496,40 @@ export function Consignees() {
                           <span
                             className={cn(
                               "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
-                              c.status ? "translate-x-5" : "translate-x-1",
+                              c.status === "active"
+                                ? "translate-x-5"
+                                : "translate-x-1",
                             )}
                           />
                         </button>
 
                         <span
                           className={cn(
-                            "text-[9px] font-bold uppercase",
-                            c.status ? "text-green-500" : "text-text-muted",
+                            "text-[10px] font-semibold",
+                            c.status === "active"
+                              ? "text-green-500"
+                              : "text-text-muted",
                           )}
                         >
-                          {c.status ? "Active" : "Inactive"}
+                          {c.status === "active" ? "Active" : "Inactive"}
                         </span>
                       </div>
                     </td>
 
-                    <td className="px-4 py-4">
-                      <div className="flex justify-center items-center gap-2">
+                    <td className="py-3 px-4 align-top">
+                      <div className="flex justify-center items-center gap-1">
                         <button
                           onClick={() => handleEdit(c)}
                           className="w-8 h-8 flex items-center justify-center text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary hover:text-black transition-all duration-200"
                         >
-                          <Edit size={15} />
+                          <Edit size={14} />
                         </button>
 
                         <button
                           onClick={() => handleDelete(c.id)}
                           className="w-8 h-8 flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all duration-200"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
