@@ -43,6 +43,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { RolesManagement } from "./pages/admin/RolesManagement";
 import AddRolePage from "./pages/admin/AddRolePage";
 import RoleWizard from "./components/common/RoleWizard";
+import ScannedOrders from "./pages/ScannedOrders";
 
 const PermissionRoute = ({ children, permission }) => {
   const { role, permissions, isAuthenticated } = useSelector(
@@ -265,6 +266,16 @@ export default function App() {
             />
             <Route path="tickets" element={<Tickets />} />
             <Route path="reports" element={<Reports />} />
+
+            <Route
+              path="scanned-orders"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ScannedOrders />
+                </PermissionRoute>
+              }
+             />
+             
 
             {/* Settings */}
             <Route

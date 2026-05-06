@@ -271,3 +271,26 @@ export const fetchInvoiceByIdApi = async (id) => {
   const res = await API.get(`${ENDPOINTS.INVOICES}/${id}`);
   return res.data;
 };
+
+export const getOrderPincodeApi = async (orderNumber, lat, lng) => {
+  const res = await API.post(`/orders/get-pincode/${orderNumber}`, { lat, lng });
+  return res.data;
+};
+
+export const scanOrderApi = async (orderNumber) => {
+  const res = await API.get(`/orders/scan/${orderNumber}`);
+  return res.data;
+};
+
+export const fetchTodayScannedOrdersApi = async (params) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v != null && v !== "")
+  );
+  const res = await API.get("/orders/orders/today-status", { params: cleanParams });
+  return res.data;
+};
+
+export const getOrderBarcodeApi = async (orderId) => {
+  const res = await API.get(`${ENDPOINTS.ORDERS}/${orderId}/barcode`);
+  return res.data;
+};

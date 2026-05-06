@@ -58,6 +58,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
     orders: [
       { name: "All Orders", to: `${base}/all-orders`, perm: "orders:view" },
       { name: "Manifested", to: `${base}/manifested`, perm: "orders:view" },
+      { name: "Scanned Orders", to: `${base}/scanned-orders`, perm: "orders:view" },
       { name: "Not Picked", to: `${base}/not-picked`, perm: "orders:view" },
       { name: "In Transit Orders", to: `${base}/in-transit`, perm: "orders:view" },
       { name: "Pending", to: `${base}/pending`, perm: "orders:view" },
@@ -317,6 +318,14 @@ export function Sidebar({ isOpen, setIsOpen }) {
             Consignees
           </NavLink>
         )}
+
+        <NavLink
+          to={`${base}/scanned-orders`}
+          icon={<Package size={20} />} 
+          hideText={!isOpen}
+        >
+          Scanned Orders
+        </NavLink>
 
         <NavLink
           to={`${base}/tickets`}
