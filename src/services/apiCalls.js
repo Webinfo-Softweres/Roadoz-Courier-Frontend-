@@ -273,20 +273,36 @@ export const fetchInvoiceByIdApi = async (id) => {
 };
 
 export const getOrderPincodeApi = async (orderNumber, lat, lng) => {
-  const res = await API.post(`/orders/get-pincode/${orderNumber}`, { lat, lng });
+  const res = await API.post(`/orders/get-pincode/${orderNumber}`, { 
+    lat: lat || 0, 
+    lng: lng || 0 
+  });
   return res.data;
 };
+
 
 export const scanOrderApi = async (orderNumber) => {
   const res = await API.get(`/orders/scan/${orderNumber}`);
   return res.data;
 };
 
-export const fetchTodayScannedOrdersApi = async (params) => {
-  const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([_, v]) => v != null && v !== "")
-  );
-  const res = await API.get("/orders/orders/today-status", { params: cleanParams });
+export const fetchTodayScannedOrdersApi = async (filters) => {
+  const { date, status, page, limit } = filters;
+
+  // The JSON Body
+  const body = { date: date };
+
+  // The URL Query Parameters
+  const config = {
+    params: {
+      status: status,
+      page: page,
+      limit: limit
+    }
+  };
+
+  const res = await API.post("/orders/orders/today-status", body, config);
+  
   return res.data;
 };
 

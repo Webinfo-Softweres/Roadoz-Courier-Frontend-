@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
@@ -9,7 +8,6 @@ import {
 import { toast } from "react-hot-toast";
 import { Html5Qrcode } from "html5-qrcode";
 import {
-    scanOrderApi,
     fetchTodayScannedOrdersApi,
     getOrderPincodeApi
 } from "../services/apiCalls";
@@ -22,7 +20,6 @@ export default function ScannedOrders() {
     const [location, setLocation] = useState({ lat: null, lng: null });
     const [pagination, setPagination] = useState({ page: 1, total: 0, total_pages: 1 });
     
-    // Refs for Scanner Logic
     const scannerRef = useRef(null);
     const inputRef = useRef(null);
     const lastScannedRef = useRef("");
@@ -34,43 +31,38 @@ export default function ScannedOrders() {
         limit: 10
     });
 
-    // 1. Geolocation Fetch
-    const getGeoLocation = useCallback(() => {
+    // 1. GPS Handler
+    useEffect(() => {
         if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    setLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-                },
-                (error) => toast.error("Please enable GPS for accurate tracking")
+                (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                (err) => console.warn("GPS access denied")
             );
         }
     }, []);
 
-    useEffect(() => {
-        getGeoLocation();
-    }, [getGeoLocation]);
-
-    // 2. Auto-focus for USB Handheld Scanners
-    useEffect(() => {
-        if (inputRef.current) {
-            inputRef.current.focus();
-        }
-    }, []);
-
-    // 3. Load Table Data
+    // 2. Load Table (With Safety Checks)
     const loadScannedOrders = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetchTodayScannedOrdersApi({
-                date: filters.date,
-                status: filters.status,
-                page: filters.page,
-                limit: filters.limit
-            });
-            setOrders(res.orders || []);
-            setPagination(res.pagination || { page: 1, total_pages: 1 });
+            console.log("[DEBUG] Fetching with Date Body:", filters.date);
+            const res = await fetchTodayScannedOrdersApi(filters);
+            
+            // Log the full response to see what's actually coming from the server
+            console.log("[DEBUG] Full API Response:", res);
+
+            // Safety check: only update if res is valid and has orders
+            if (res && res.orders) {
+                setOrders(res.orders);
+                setPagination(res.pagination || { page: 1, total_pages: 1 });
+            } else {
+                console.warn("[DEBUG] Response received but 'orders' field is missing:", res);
+                setOrders([]);
+            }
         } catch (error) {
-            console.error(error);
+            console.error("[DEBUG] Load Error:", error.response?.data || error.message);
+            toast.error("Failed to load records");
+            setOrders([]); // Clear table on error
         } finally {
             setLoading(false);
         }
@@ -80,46 +72,34 @@ export default function ScannedOrders() {
         loadScannedOrders();
     }, [loadScannedOrders]);
 
-    // 4. Unified Scan Process Logic (Camera & USB)
+    // 3. Scan Handler
     const handleScanSuccess = async (decodedText) => {
-        if (!decodedText || loading) return;
+        if (!decodedText || loading || lastScannedRef.current === decodedText) return;
 
-        // Prevent duplicate scans within 1.5 seconds (debouncing)
-        if (lastScannedRef.current === decodedText) return;
         lastScannedRef.current = decodedText;
+        toast.loading(`Processing ${decodedText}...`, { id: 'scan-act' });
 
         try {
-            toast.loading(`Processing ${decodedText}...`, { id: 'scan-act' });
-
-            // API: Change Order Status
-            await scanOrderApi(decodedText);
-
-            // API: Update Location if GPS is on
-            if (location.lat) {
-                await getOrderPincodeApi(decodedText, location.lat, location.lng);
-            }
-
+            const res = await getOrderPincodeApi(decodedText, location.lat, location.lng);
+            console.log("[DEBUG] Scan Success:", res);
+            
             toast.success(`Order ${decodedText} Verified`, { id: 'scan-act' });
-
             if (navigator.vibrate) navigator.vibrate(200);
 
             loadScannedOrders(); // Refresh table
         } catch (error) {
+            console.error("[DEBUG] Scan API Error:", error);
             toast.error(error.response?.data?.message || "Invalid Barcode", { id: 'scan-act' });
         }
 
-        // Reset the "last scanned" lock after a delay
-        setTimeout(() => {
-            lastScannedRef.current = "";
-        }, 1500);
+        setTimeout(() => { lastScannedRef.current = ""; }, 2000);
     };
 
-    // 5. Camera Toggle Logic
+    // 4. Camera Logic
     const toggleScanner = async () => {
         if (isScanning) {
             if (scannerRef.current) {
-                await scannerRef.current.stop().catch(() => { });
-                scannerRef.current.clear();
+                await scannerRef.current.stop().catch(() => {});
                 scannerRef.current = null;
             }
             setIsScanning(false);
@@ -127,229 +107,147 @@ export default function ScannedOrders() {
         }
 
         setIsScanning(true);
-
         setTimeout(async () => {
             try {
                 const html5QrCode = new Html5Qrcode("reader");
                 scannerRef.current = html5QrCode;
-
                 const devices = await Html5Qrcode.getCameras();
-                if (!devices || devices.length === 0) throw new Error("No camera found");
-
-                // Prefer back camera on mobile devices
-                let cameraId = devices[0].id;
-                const backCam = devices.find(d => d.label.toLowerCase().includes("back"));
-                if (backCam) cameraId = backCam.id;
+                const backCam = devices.find(d => d.label.toLowerCase().includes("back")) || devices[0];
 
                 await html5QrCode.start(
-                    cameraId,
-                    {
-                        fps: 10,
-                        qrbox: { width: 250, height: 120 },
-                        aspectRatio: 1.777,
-                    },
-                    (decodedText) => handleScanSuccess(decodedText),
-                    () => { } // silent ignore on failed frames
+                    backCam.id,
+                    { fps: 10, qrbox: { width: 250, height: 150 } },
+                    (text) => handleScanSuccess(text),
+                    () => {}
                 );
             } catch (err) {
-                console.error("Camera error:", err);
-                toast.error("Camera failed: " + err.message);
+                console.error("[DEBUG] Camera Error:", err);
                 setIsScanning(false);
             }
         }, 300);
     };
 
-    // Cleanup on page close
+    // USB Scanner Auto-focus
     useEffect(() => {
-        return () => {
-            if (scannerRef.current) {
-                scannerRef.current.stop().catch(() => { });
-                scannerRef.current.clear();
-            }
-        };
-    }, []);
-
-    const handleExport = () => {
-        if (orders.length === 0) return toast.error("No data to export");
-        const headers = ["Order Number", "Status", "Customer", "Date"];
-        const csv = [headers, ...orders.map(o => [o.order_number, o.status, o.consignee?.name, o.updated_at])].map(r => r.join(",")).join("\n");
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Scanned_Report_${filters.date}.csv`;
-        a.click();
-    };
+        const interval = setInterval(() => {
+            if (inputRef.current && !isScanning) inputRef.current.focus();
+        }, 1500);
+        return () => clearInterval(interval);
+    }, [isScanning]);
 
     return (
-        <div className="space-y-6 p-4 lg:p-6 bg-dashboard-bg min-h-screen">
-            {/* HIDDEN INPUT FOR USB SCANNERS */}
+        <div className="p-4 lg:p-6 space-y-6 bg-dashboard-bg min-h-screen text-text-main">
             <input
                 ref={inputRef}
                 type="text"
-                className="opacity-0 absolute pointer-events-none top-0 left-0"
+                className="opacity-0 absolute pointer-events-none"
                 onKeyDown={(e) => {
                     if (e.key === "Enter") {
                         handleScanSuccess(e.target.value);
-                        e.target.value = ""; // Clear for next scan
+                        e.target.value = "";
                     }
                 }}
                 autoFocus
             />
 
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
-                        <Scan className="text-primary" /> Speed Scanner
-                    </h1>
-                    <p className="text-xs text-text-muted mt-1 uppercase tracking-wider">
-                        Capture Barcodes via Camera or USB Handheld
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-card-bg border border-border-subtle rounded-lg text-[10px] font-bold">
-                        <MapPin size={14} className={location.lat ? "text-green-500" : "text-red-500"} />
-                        <span className="text-text-main">
-                            {location.lat ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : "GPS DISABLED"}
-                        </span>
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <Scan className="text-primary" /> Speed Scanner
+                </h1>
+                <div className="flex items-center gap-4">
+                    <div className="hidden md:block bg-card-bg px-3 py-2 border border-border-subtle rounded text-[10px] font-mono">
+                        GPS: {location.lat ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : "OFF"}
                     </div>
-                    <Button
-                        onClick={toggleScanner}
-                        className={`${isScanning ? "bg-red-500 hover:bg-red-600" : "bg-primary hover:bg-primary/90"} text-black font-bold h-11 px-6 rounded-xl transition-all shadow-lg flex items-center gap-2`}
-                    >
-                        {isScanning ? <><StopCircle size={20} /> Stop Camera</> : <><Maximize size={20} /> Start Camera</>}
+                    <Button onClick={toggleScanner} className={isScanning ? "bg-red-500" : "bg-primary text-black"}>
+                        {isScanning ? <StopCircle className="mr-2" /> : <Maximize className="mr-2" />}
+                        {isScanning ? "Stop Camera" : "Start Camera"}
                     </Button>
                 </div>
             </div>
 
-            {/* Active Camera UI */}
             {isScanning && (
-                <Card className="border-2 border-primary border-dashed bg-black overflow-hidden relative">
-                    <CardContent className="p-0 flex flex-col items-center">
-                        <div id="reader" className="w-full min-h-[300px] bg-black flex items-center justify-center"></div>
-                        <div className="absolute bottom-4 left-0 right-0 text-center">
-                            <span className="bg-primary/90 text-black px-4 py-1 rounded-full text-xs font-bold animate-pulse">
-                                CAMERA SCANNER ACTIVE
-                            </span>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div id="reader" className="w-full max-w-xl mx-auto aspect-video bg-black rounded-xl border-2 border-primary overflow-hidden shadow-2xl"></div>
             )}
 
-            {/* Listing and Filters */}
-            <Card className="bg-card-bg border-border-subtle shadow-md overflow-hidden">
-                <CardContent className="p-0">
-                    <div className="p-4 bg-dashboard-bg/50 border-b border-border-subtle grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Filter Date</label>
-                            <input
-                                type="date"
-                                className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2.5 text-xs text-text-main focus:ring-2 focus:ring-primary outline-none"
-                                value={filters.date}
-                                onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Target Status</label>
-                            <select
-                                className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2.5 text-xs text-text-main focus:ring-2 focus:ring-primary outline-none appearance-none"
-                                value={filters.status}
-                                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                            >
-                                <option value="Picked">Picked (In-Scan)</option>
-                                <option value="Dispatched">Dispatched (Out-Scan)</option>
-                                <option value="Delivered">Delivered</option>
-                            </select>
-                        </div>
-                        <div className="flex gap-2">
-                            <Button onClick={loadScannedOrders} className="flex-1 bg-white/5 hover:bg-white/10 text-text-main text-xs font-bold h-10 border border-border-subtle">
-                                <RotateCcw size={14} className="mr-2" /> Refresh
-                            </Button>
-                            <Button onClick={handleExport} className="flex-1 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold h-10 border border-primary/20">
-                                <Download size={14} className="mr-2" /> Export
-                            </Button>
-                        </div>
+            <Card className="bg-card-bg border-border-subtle shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-border-subtle grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-muted">SCAN DATE</label>
+                        <input
+                            type="date"
+                            className="w-full bg-dashboard-bg border border-border-subtle rounded p-2 text-xs"
+                            value={filters.date}
+                            onChange={(e) => setFilters({ ...filters, date: e.target.value, page: 1 })}
+                        />
                     </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-muted">TARGET STATUS</label>
+                        <select
+                            className="w-full bg-dashboard-bg border border-border-subtle rounded p-2 text-xs"
+                            value={filters.status}
+                            onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
+                        >
+                            <option value="Picked">Picked (In-Scan)</option>
+                            <option value="Dispatched">Dispatched (Out-Scan)</option>
+                        </select>
+                    </div>
+                    <div className="flex items-end">
+                        <Button onClick={loadScannedOrders} className="w-full bg-white/5 border border-border-subtle text-xs">
+                            <RotateCcw size={14} className="mr-2" /> Refresh
+                        </Button>
+                    </div>
+                </div>
 
-                    {/* Records Table */}
-                    <div className="overflow-x-auto relative min-h-[400px]">
-                        {loading && (
-                            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-20">
-                                <Loader2 className="animate-spin text-primary" size={40} />
-                            </div>
-                        )}
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-dashboard-bg/80 text-text-muted text-[10px] font-black uppercase tracking-tighter border-b border-border-subtle">
-                                    <th className="px-6 py-4">Order Details</th>
-                                    <th className="px-6 py-4">Consignee</th>
-                                    <th className="px-6 py-4">Box Info</th>
-                                    <th className="px-6 py-4">Weight</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4">Time</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border-subtle">
-                                {orders.length > 0 ? (
-                                    orders.map((order) => (
-                                        <tr key={order.id} className="hover:bg-primary/5 transition-all group">
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-black text-text-main group-hover:text-primary transition-colors">{order.order_number}</div>
-                                                <div className="text-[10px] text-text-muted font-bold">{order.order_type} • {order.payment_method}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs font-bold text-text-main">{order.consignee?.name}</div>
-                                                <div className="text-[10px] text-text-muted italic">Verified Consignee</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1 max-w-[150px]">
-                                                    {order.packages?.map((pkg, i) => (
-                                                        <span key={i} className="text-[9px] bg-dashboard-bg border border-border-subtle px-1.5 py-0.5 rounded text-text-muted">
-                                                            {pkg.length_cm}x{pkg.breadth_cm}x{pkg.height_cm}cm
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs font-black text-text-main">{order.total_weight_kg} <span className="text-[10px] font-normal text-text-muted">KG</span></div>
-                                                <div className="text-[10px] text-primary font-bold">{order.total_boxes} Box(es)</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center w-fit gap-1.5 ${order.status === 'Picked' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'
-                                                    }`}>
-                                                    <CheckCircle2 size={12} /> {order.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-[11px] text-text-muted font-mono bg-dashboard-bg/20">
-                                                {new Date(order.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-32 text-center">
-                                            <div className="flex flex-col items-center gap-4 opacity-40">
-                                                <PackageSearch size={64} className="text-text-muted" />
-                                                <div className="space-y-1">
-                                                    <p className="text-xl font-bold text-text-main">No Scanned Items</p>
-                                                    <p className="text-xs uppercase tracking-widest">USB Scanner ready or use Start Camera</p>
-                                                </div>
-                                            </div>
+                <div className="overflow-x-auto min-h-[400px] relative">
+                    {loading && (
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10 backdrop-blur-sm">
+                            <Loader2 className="animate-spin text-primary" size={40} />
+                        </div>
+                    )}
+                    <table className="w-full text-left">
+                        <thead className="bg-dashboard-bg/50 text-[10px] uppercase text-text-muted font-bold">
+                            <tr>
+                                <th className="px-6 py-4">Order Details</th>
+                                <th className="px-6 py-4">Consignee</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border-subtle">
+                            {orders && orders.length > 0 ? (
+                                orders.map((o) => (
+                                    <tr key={o.id} className="hover:bg-primary/5 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="text-sm font-bold text-text-main">{o.order_number}</div>
+                                            <div className="text-[10px] text-text-muted uppercase">{o.order_type} • {o.payment_method}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-xs">{o.consignee?.name || "N/A"}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="bg-green-500/10 text-green-500 px-2 py-1 rounded-[4px] text-[10px] font-bold">
+                                                {o.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-[10px] font-mono text-text-muted">
+                                            {new Date(o.updated_at).toLocaleTimeString()}
                                         </td>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <Pagination
-                        currentPage={pagination.page}
-                        totalPages={pagination.total_pages}
-                        onPageChange={(p) => setFilters({ ...filters, page: p })}
-                    />
-                </CardContent>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={4} className="py-24 text-center text-text-muted italic">
+                                        <PackageSearch className="mx-auto mb-2 opacity-20" size={40} />
+                                        No scanned items found
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.total_pages}
+                    onPageChange={(p) => setFilters({ ...filters, page: p })}
+                />
             </Card>
         </div>
     );
