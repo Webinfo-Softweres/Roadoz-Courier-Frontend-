@@ -273,9 +273,12 @@ export const fetchInvoiceByIdApi = async (id) => {
 };
 
 export const getOrderPincodeApi = async (orderNumber, lat, lng) => {
+  // LOG: Verify values before sending
+  console.log(`[API CALL] getOrderPincodeApi - Barcode: ${orderNumber}, Lat: ${lat}, Lng: ${lng}`);
+
   const res = await API.post(`/orders/get-pincode/${orderNumber}`, { 
-    lat: lat || 0, 
-    lng: lng || 0 
+    lat: lat ? parseFloat(lat) : 0, 
+    lng: lng ? parseFloat(lng) : 0 
   });
   return res.data;
 };
