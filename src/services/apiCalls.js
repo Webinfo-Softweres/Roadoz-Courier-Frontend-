@@ -273,14 +273,33 @@ export const fetchInvoiceByIdApi = async (id) => {
 };
 
 export const getOrderPincodeApi = async (orderNumber, lat, lng) => {
-  // LOG: Verify values before sending
-  console.log(`[API CALL] getOrderPincodeApi - Barcode: ${orderNumber}, Lat: ${lat}, Lng: ${lng}`);
 
-  const res = await API.post(`/orders/get-pincode/${orderNumber}`, { 
-    lat: lat ? parseFloat(lat) : 0, 
-    lng: lng ? parseFloat(lng) : 0 
-  });
-  return res.data;
+  console.log("[API CALL] getOrderPincodeApi");
+  const body = {
+    order_number: orderNumber,
+    lat: Number(lat),
+    lng: Number(lng)
+  };
+
+  console.log("📤 JSON Body:", body);
+
+  try {
+
+    const res = await API.post(
+      `/orders/get-pincode`,
+      body
+    );
+
+    console.log("✅ API SUCCESS");
+    console.log("📥 Response:", res.data);
+
+    return res.data;
+
+  } catch (error) {
+    console.error("❌ API ERROR:", error);
+
+    throw error;
+  }
 };
 
 
