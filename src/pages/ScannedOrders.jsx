@@ -11,7 +11,8 @@ import {
     CheckCircle2,
     MapPin,
     PackageSearch,
-    Scan
+    Scan,
+    RefreshCw
 } from "lucide-react";
 
 import { toast } from "react-hot-toast";
@@ -31,12 +32,13 @@ export default function ScannedOrders() {
     ===================================================== */
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [scanLoading, setScanLoading] = useState(false); // Specific loader for scanning process
+    const [scanLoading, setScanLoading] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
 
     const [location, setLocation] = useState({
         lat: null,
-        lng: null
+        lng: null,
+        loading: false
     });
 
     const [pagination, setPagination] = useState({
@@ -57,39 +59,56 @@ export default function ScannedOrders() {
     ===================================================== */
     const scannerRef = useRef(null);
     const inputRef = useRef(null);
-    const scanCooldownRef = useRef({}); // Prevents double-scanning same barcode instantly
+    const scanCooldownRef = useRef({});
 
     /* =====================================================
-       AUTOMATIC GPS LOCATION
+       ENHANCED GPS LOCATION (Mobile Optimized)
     ===================================================== */
-    const getGeoLocation = useCallback(() => {
+    const getGeoLocation = useCallback((isManual = false) => {
         if (!navigator.geolocation) {
-            toast.error("Geolocation not supported by this browser");
+            toast.error("Geolocation is not supported by your browser");
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const coords = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
-                };
-                console.log("GPS CAPTURED:", coords);
-                setLocation(coords);
-            },
-            (error) => {
-                console.error("GPS Error:", error);
-                toast.error("Please enable GPS/Location permissions");
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
+        setLocation(prev => ({ ...prev, loading: true }));
+        if(isManual) toast.loading("Fetching GPS...", { id: "gps-fetch" });
+
+        const options = {
+            enableHighAccuracy: true, // Try to get exact GPS
+            timeout: 8000,            // Wait 8 seconds
+            maximumAge: 0             // Do not use cached location
+        };
+
+        const success = (position) => {
+            const coords = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                loading: false
+            };
+            console.log("GPS CAPTURED:", coords);
+            setLocation(coords);
+            if(isManual) toast.success("Location Fixed", { id: "gps-fetch" });
+        };
+
+        const error = (err) => {
+            console.error("GPS Error Code:", err.code, err.message);
+            
+            // FALLBACK: If High Accuracy fails (common indoors), try low accuracy
+            if (err.code === 3 || err.code === 2) { 
+                console.log("Retrying with lower accuracy...");
+                navigator.geolocation.getCurrentPosition(success, (err2) => {
+                    setLocation(prev => ({ ...prev, loading: false }));
+                    toast.error("GPS Signal Weak. Move near a window.", { id: "gps-fetch" });
+                }, { enableHighAccuracy: false, timeout: 5000 });
+            } else {
+                setLocation(prev => ({ ...prev, loading: false }));
+                toast.error("Please enable Location in your Phone Settings", { id: "gps-fetch" });
             }
-        );
+        };
+
+        navigator.geolocation.getCurrentPosition(success, error, options);
     }, []);
 
-    // Capture location on mount and when scanning occurs
     useEffect(() => {
         getGeoLocation();
     }, [getGeoLocation]);
@@ -98,10 +117,7 @@ export default function ScannedOrders() {
        USB SCANNER AUTO-FOCUS
     ===================================================== */
     useEffect(() => {
-        const focusInput = () => {
-            inputRef.current?.focus();
-        };
-
+        const focusInput = () => { inputRef.current?.focus(); };
         focusInput();
         window.addEventListener("click", focusInput);
         return () => window.removeEventListener("click", focusInput);
@@ -133,59 +149,35 @@ export default function ScannedOrders() {
     }, [loadScannedOrders]);
 
     /* =====================================================
-       FEEDBACK (BEEP)
-    ===================================================== */
-    const playBeep = () => {
-        try {
-            const audio = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
-            audio.play();
-        } catch (e) {
-            console.log("Audio play blocked");
-        }
-    };
-
-    /* =====================================================
-       PROCESS SCANNED VALUE (Handles URLs/JSON/Plain)
+       SCAN LOGIC
     ===================================================== */
     const processScannedValue = (decodedText) => {
         let orderNumber = decodedText.trim();
-
-        // 1. If QR is a URL (e.g. https://site.com/orders/ORD123)
         if (orderNumber.includes("/")) {
             const parts = orderNumber.split("/");
             orderNumber = parts[parts.length - 1];
         }
-
-        // 2. If QR is JSON (e.g. {"order_number": "ORD123"})
         try {
             const parsed = JSON.parse(orderNumber);
             if (parsed.order_number) orderNumber = parsed.order_number;
-        } catch (e) { /* Not JSON, use original string */ }
-
-        // Clean white spaces
+        } catch (e) {}
         return orderNumber.replace(/\n/g, "").replace(/\r/g, "").trim();
     };
 
-    /* =====================================================
-       MAIN SCAN HANDLER
-    ===================================================== */
     const handleScanSuccess = async (decodedText) => {
         if (!decodedText || scanLoading) return;
 
         const orderNumber = processScannedValue(decodedText);
         if (!orderNumber) return;
 
-        // Duplicate Check (3 second cooldown)
         const now = Date.now();
-        if (scanCooldownRef.current[orderNumber] && now - scanCooldownRef.current[orderNumber] < 3000) {
-            return;
-        }
+        if (scanCooldownRef.current[orderNumber] && now - scanCooldownRef.current[orderNumber] < 3000) return;
         scanCooldownRef.current[orderNumber] = now;
 
-        // GPS Validation
+        // Force check GPS if missing before API call
         if (!location.lat || !location.lng) {
-            toast.error("Waiting for GPS location...");
-            getGeoLocation();
+            toast.error("GPS missing! Refreshing location...");
+            getGeoLocation(true);
             return;
         }
 
@@ -195,21 +187,19 @@ export default function ScannedOrders() {
         try {
             const res = await getOrderPincodeApi(orderNumber, location.lat, location.lng);
             
-            playBeep();
+            // Audio/Vibrate Feedback
+            try { new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg").play(); } catch(e){}
             if (navigator.vibrate) navigator.vibrate(200);
 
-            toast.success(res?.message || `Order ${orderNumber} scanned successfully`, { id: toastId });
-
+            toast.success(res?.message || `Order ${orderNumber} scanned`, { id: toastId });
             await loadScannedOrders();
 
-            // Auto-stop camera after success (optional - as per referral code)
             if (isScanning) await stopCamera();
 
         } catch (error) {
             toast.error(error?.response?.data?.message || "Invalid Barcode", { id: toastId });
         } finally {
             setScanLoading(false);
-            getGeoLocation(); // Refresh GPS for next scan
             if (inputRef.current) {
                 inputRef.current.value = "";
                 inputRef.current.focus();
@@ -237,6 +227,10 @@ export default function ScannedOrders() {
             return;
         }
 
+        // IMPORTANT for Mobile: Request GPS right before starting camera 
+        // ensures permission is fresh
+        getGeoLocation();
+
         setIsScanning(true);
         setTimeout(async () => {
             try {
@@ -244,45 +238,24 @@ export default function ScannedOrders() {
                 scannerRef.current = html5QrCode;
                 await html5QrCode.start(
                     { facingMode: "environment" },
-                    { fps: 25, qrbox: { width: 300, height: 180 }, aspectRatio: 1.777 },
+                    { fps: 25, qrbox: { width: 280, height: 180 }, aspectRatio: 1.777 },
                     (text) => handleScanSuccess(text),
                     () => {}
                 );
             } catch (err) {
-                toast.error("Camera failed to start");
+                toast.error("Camera access denied");
                 setIsScanning(false);
             }
         }, 300);
     };
 
-    const handleExport = () => {
-        if (!orders.length) return toast.error("No data to export");
-        const headers = ["Order Number", "Status", "Customer", "Date"];
-        const rows = orders.map(o => [o.order_number, o.status, o.consignee?.name, o.updated_at]);
-        const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Scanned_Report_${filters.date}.csv`;
-        a.click();
-    };
-
-    const statusStyles = {
-        Picked: "bg-blue-500/10 text-blue-500",
-        Dispatched: "bg-yellow-500/10 text-yellow-500",
-        Delivered: "bg-green-500/10 text-green-500",
-        Cancelled: "bg-red-500/10 text-red-500"
-    };
-
     return (
         <div className="space-y-6 p-4 lg:p-6 bg-dashboard-bg min-h-screen">
-            {/* HIDDEN USB INPUT */}
             <input
                 ref={inputRef}
                 type="text"
                 autoFocus
-                className="opacity-0 absolute pointer-events-none top-0 left-0"
+                className="opacity-0 absolute pointer-events-none"
                 onKeyDown={(e) => {
                     if (e.key === "Enter") {
                         handleScanSuccess(e.target.value);
@@ -292,121 +265,104 @@ export default function ScannedOrders() {
             />
 
             {/* HEADER */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+            <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-xl font-bold flex items-center gap-2">
                         <Scan className="text-primary" /> Speed Scanner
                     </h1>
-                    <p className="text-xs uppercase tracking-wider text-text-muted mt-1">
-                        Camera + USB Barcode Scanner
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex items-center gap-2 px-3 py-2 border rounded-lg text-xs">
-                        <MapPin size={14} className={location.lat ? "text-green-500" : "text-red-500"} />
-                        <span>{location.lat ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : "GPS WAITING"}</span>
-                    </div>
-                    <Button
-                        onClick={toggleScanner}
-                        className={isScanning ? "bg-red-500 hover:bg-red-600" : "bg-primary hover:bg-primary/90 text-black"}
+                    
+                    {/* MOBILE GPS INDICATOR / REFRESH BUTTON */}
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => getGeoLocation(true)}
+                        className={`flex items-center gap-2 border px-3 py-1 rounded-full text-[10px] ${location.lat ? "text-green-500 border-green-500/30" : "text-red-500 border-red-500/30"}`}
                     >
-                        {isScanning ? <><StopCircle size={18} /> Stop Camera</> : <><Maximize size={18} /> Start Camera</>}
+                        <MapPin size={12} />
+                        {location.loading ? "Locating..." : location.lat ? `${location.lat.toFixed(3)}, ${location.lng.toFixed(3)}` : "GPS OFF"}
+                        <RefreshCw size={10} className={location.loading ? "animate-spin" : ""} />
                     </Button>
                 </div>
+
+                <Button
+                    onClick={toggleScanner}
+                    className={`w-full py-6 text-lg font-bold shadow-xl ${isScanning ? "bg-red-500 hover:bg-red-600" : "bg-primary hover:bg-primary/90 text-black"}`}
+                >
+                    {isScanning ? <><StopCircle className="mr-2" /> Stop Camera</> : <><Maximize className="mr-2" /> Start Camera</>}
+                </Button>
             </div>
 
             {/* CAMERA VIEW */}
             {isScanning && (
-                <Card className="border-2 border-primary border-dashed bg-black overflow-hidden">
+                <Card className="border-2 border-primary border-dashed bg-black overflow-hidden ring-4 ring-primary/10">
                     <CardContent className="p-0">
-                        <div id="reader" className="w-full min-h-[350px]" />
+                        <div id="reader" className="w-full min-h-[300px]" />
                     </CardContent>
                 </Card>
             )}
 
             {/* TABLE SECTION */}
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden border-none shadow-lg">
                 <CardContent className="p-0">
-                    {/* FILTERS */}
-                    <div className="p-4 border-b flex flex-wrap gap-3 items-end">
-                        <div>
-                            <label className="text-xs block mb-1">Date</label>
-                            <input
-                                type="date"
-                                value={filters.date}
-                                onChange={(e) => setFilters({ ...filters, date: e.target.value, page: 1 })}
-                                className="border rounded-lg px-3 py-2 text-sm bg-transparent"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-xs block mb-1">Status</label>
-                            <select
-                                value={filters.status}
-                                onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
-                                className="border rounded-lg px-3 py-2 text-sm bg-transparent"
-                            >
-                                <option value="Picked">Picked</option>
-                                <option value="Dispatched">Dispatched</option>
-                                <option value="Delivered">Delivered</option>
-                            </select>
-                        </div>
-                        <Button variant="outline" onClick={loadScannedOrders}>
-                            <RotateCcw size={14} className="mr-2" /> Refresh
-                        </Button>
-                        <Button variant="outline" onClick={handleExport}>
-                            <Download size={14} className="mr-2" /> Export
-                        </Button>
+                    {/* MOBILE FILTERS */}
+                    <div className="p-4 border-b grid grid-cols-2 gap-2 bg-card-bg">
+                        <input
+                            type="date"
+                            value={filters.date}
+                            onChange={(e) => setFilters({ ...filters, date: e.target.value, page: 1 })}
+                            className="border rounded-lg px-2 py-2 text-xs bg-dashboard-bg"
+                        />
+                        <select
+                            value={filters.status}
+                            onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
+                            className="border rounded-lg px-2 py-2 text-xs bg-dashboard-bg"
+                        >
+                            <option value="Picked">Picked</option>
+                            <option value="Dispatched">Dispatched</option>
+                            <option value="Delivered">Delivered</option>
+                        </select>
                     </div>
 
-                    {/* TABLE */}
-                    <div className="overflow-x-auto relative min-h-[400px]">
+                    <div className="overflow-x-auto relative min-h-[300px]">
                         {(loading || scanLoading) && (
-                            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-20">
-                                <Loader2 className="animate-spin text-primary" size={40} />
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center z-20 text-white">
+                                <Loader2 className="animate-spin text-primary mb-2" size={40} />
+                                <p className="text-xs font-bold uppercase tracking-widest">Processing Scan...</p>
                             </div>
                         )}
+                        
                         <table className="w-full border-collapse">
-                            <thead>
-                                <tr className="border-b text-xs uppercase text-text-muted">
-                                    <th className="px-6 py-4 text-left">Order</th>
-                                    <th className="px-6 py-4 text-left">Customer</th>
-                                    <th className="px-6 py-4 text-left">Weight</th>
-                                    <th className="px-6 py-4 text-left">Status</th>
-                                    <th className="px-6 py-4 text-left">Time</th>
+                            <thead className="bg-dashboard-bg/50">
+                                <tr className="text-[10px] uppercase text-text-muted border-b">
+                                    <th className="px-4 py-3 text-left">Order & Customer</th>
+                                    <th className="px-4 py-3 text-left">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {orders.length > 0 ? (
                                     orders.map((order) => (
-                                        <tr key={order.id} className="border-b hover:bg-primary/5 transition-all">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold">{order.order_number}</div>
-                                                <div className="text-[10px] text-text-muted">{order.order_type}</div>
+                                        <tr key={order.id} className="border-b active:bg-primary/10">
+                                            <td className="px-4 py-4">
+                                                <div className="font-bold text-sm">{order.order_number}</div>
+                                                <div className="text-[10px] text-text-muted truncate max-w-[150px]">
+                                                    {order.consignee?.name || "No Customer"}
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4 text-sm">
-                                                {order.consignee?.name || "N/A"}
-                                            </td>
-                                            <td className="px-6 py-4 text-sm font-bold">
-                                                {order.total_weight_kg} KG
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 w-fit ${statusStyles[order.status] || "bg-gray-500/10 text-gray-500"}`}>
-                                                    <CheckCircle2 size={12} /> {order.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-xs">
-                                                {new Date(order.updated_at).toLocaleTimeString()}
+                                            <td className="px-4 py-4">
+                                                <div className={`px-2 py-1 rounded text-[9px] font-black w-fit uppercase ${order.status === 'Picked' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'}`}>
+                                                    {order.status}
+                                                </div>
+                                                <div className="text-[9px] text-text-muted mt-1 italic">
+                                                    {new Date(order.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="text-center py-24">
-                                            <div className="flex flex-col items-center gap-4 opacity-50">
-                                                <PackageSearch size={60} />
-                                                <p className="text-lg font-bold">No Scanned Orders</p>
-                                            </div>
+                                        <td colSpan={2} className="text-center py-20 opacity-40">
+                                            <PackageSearch size={48} className="mx-auto mb-2" />
+                                            <p className="text-xs font-bold">No items found</p>
                                         </td>
                                     </tr>
                                 )}
@@ -428,7 +384,9 @@ export default function ScannedOrders() {
                         width: 100% !important;
                         height: auto !important;
                         object-fit: cover;
-                        border-radius: 12px;
+                    }
+                    #reader__scan_region {
+                        background: black !important;
                     }
                 `}
             </style>
