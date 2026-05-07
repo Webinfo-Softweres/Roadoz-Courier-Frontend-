@@ -17,7 +17,7 @@ export default function ScannedOrders() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
-    const [location, setLocation] = useState({ lat: null, lng: null });
+    const [location, setLocation] = useState({ lat: 0, lng: 0 });
     const [pagination, setPagination] = useState({ page: 1, total_pages: 1 });
     
     const scannerRef = useRef(null);
@@ -31,17 +31,17 @@ export default function ScannedOrders() {
         limit: 10
     });
 
-    // 1. Fetch Location once on load
+    // 1. Get GPS Location
     useEffect(() => {
         if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                (err) => console.warn("[GPS] Denied: Location data will be 0,0")
+                (err) => console.warn("[GPS] Denied: using 0,0")
             );
         }
     }, []);
 
-    // 2. Load Table
+    // 2. Load Table List
     const loadScannedOrders = useCallback(async () => {
         setLoading(true);
         try {
@@ -62,39 +62,34 @@ export default function ScannedOrders() {
         loadScannedOrders();
     }, [loadScannedOrders]);
 
-    // 3. The Logic: Scan -> Update API -> Refresh List
+    // 3. Logic: When a barcode is detected
     const handleScanSuccess = async (decodedText) => {
         const barcode = decodedText.trim();
-        console.log(`[SCANNER] Raw Barcode Captured: "${barcode}"`);
-
         if (!barcode || loading || lastScannedRef.current === barcode) return;
 
+        console.log(`[SCANNER] Code Found: ${barcode}`);
         lastScannedRef.current = barcode;
-        toast.loading(`Validating: ${barcode}`, { id: 'scan-act' });
+        toast.loading(`Processing ${barcode}...`, { id: 'scan-act' });
 
         try {
-            // STEP 1: Update the status to 'Picked' via the Pincode/GPS API
-            console.log(`[API] Updating status for ${barcode}...`);
-            const res = await getOrderPincodeApi(barcode, location.lat, location.lng);
+            // STEP 1: Update via POST API
+            await getOrderPincodeApi(barcode, location.lat, location.lng);
             
-            console.log("[API] Update Response:", res);
             toast.success(`Verified: ${barcode}`, { id: 'scan-act' });
-
             if (navigator.vibrate) navigator.vibrate(200);
 
-            // STEP 2: Reload the "Today's Listing" to show the item
+            // STEP 2: Refresh today's list
             loadScannedOrders(); 
         } catch (error) {
-            console.error("[API ERROR]", error.response?.data || error.message);
-            // If the server says invalid, it's usually because the barcode string is partial or doesn't exist
-            toast.error(error.response?.data?.message || "Invalid Barcode Structure", { id: 'scan-act' });
+            console.error("[SCAN API ERROR]", error);
+            toast.error("Invalid Barcode", { id: 'scan-act' });
         }
 
-        // Reset lock after 3 seconds to allow re-scanning if needed
+        // Reset debounce lock
         setTimeout(() => { lastScannedRef.current = ""; }, 3000);
     };
 
-    // 4. Camera Setup (Fixed for Laptop and Barcode Shapes)
+    // 4. Camera Toggle (Fixing the Rectangle)
     const toggleScanner = async () => {
         if (isScanning) {
             if (scannerRef.current) {
@@ -106,50 +101,44 @@ export default function ScannedOrders() {
         }
 
         setIsScanning(true);
+        
+        // Wait for DOM element to render
         setTimeout(async () => {
             try {
-                // Focus on 1D Barcodes + QR
-                const html5QrCode = new Html5Qrcode("reader", { 
+                const html5QrCode = new Html5Qrcode("reader", {
                     formatsToSupport: [ 
                         Html5QrcodeSupportedFormats.CODE_128, 
                         Html5QrcodeSupportedFormats.CODE_39, 
-                        Html5QrcodeSupportedFormats.EAN_13, 
+                        Html5QrcodeSupportedFormats.EAN_13,
                         Html5QrcodeSupportedFormats.QR_CODE 
-                    ] 
+                    ]
                 });
-                
                 scannerRef.current = html5QrCode;
-                const devices = await Html5Qrcode.getCameras();
-                if (!devices.length) throw new Error("No camera detected");
-
-                const backCam = devices.find(d => d.label.toLowerCase().includes("back")) || devices[0];
 
                 await html5QrCode.start(
-                    backCam.id,
-                    { 
-                        fps: 20, 
-                        // WIDE RECTANGLE for barcodes (not a square)
-                        qrbox: { width: 350, height: 150 }, 
-                        aspectRatio: 1.7777,
-                        // Request high resolution for better focus on laptop cams
+                    { facingMode: "environment" },
+                    {
+                        fps: 20,
+                        // This shows the Rectangle UI and limits scan area
+                        qrbox: { width: 350, height: 180 }, 
+                        aspectRatio: 1.777778,
                         videoConstraints: {
-                            facingMode: "environment",
                             width: { ideal: 1280 },
                             height: { ideal: 720 }
                         }
                     },
                     (text) => handleScanSuccess(text),
-                    () => {} 
+                    () => {} // error callback
                 );
             } catch (err) {
                 console.error("[CAMERA ERROR]", err);
-                toast.error("Camera error. Use USB Scanner instead.");
+                toast.error("Could not start camera");
                 setIsScanning(false);
             }
         }, 300);
     };
 
-    // Keep hidden input focused for USB Handheld scanner
+    // USB Scanner Auto-Focus
     useEffect(() => {
         const intv = setInterval(() => {
             if (inputRef.current && !isScanning) inputRef.current.focus();
@@ -175,13 +164,13 @@ export default function ScannedOrders() {
 
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Scan className="text-primary" /> Multi-Device Scanner
+                    <Scan className="text-primary" /> Speed Scanner
                 </h1>
                 <div className="flex items-center gap-4">
                     <div className="hidden md:block bg-card-bg px-3 py-2 border border-border-subtle rounded text-[10px] font-mono">
-                        GPS: {location.lat ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : "WAITING..."}
+                        GPS: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
                     </div>
-                    <Button onClick={toggleScanner} className={isScanning ? "bg-red-500" : "bg-primary text-black font-bold"}>
+                    <Button onClick={toggleScanner} className={isScanning ? "bg-red-500 hover:bg-red-600" : "bg-primary hover:bg-primary/90 text-black font-bold"}>
                         {isScanning ? <StopCircle className="mr-2" /> : <Maximize className="mr-2" />}
                         {isScanning ? "Stop Camera" : "Start Camera"}
                     </Button>
@@ -189,24 +178,33 @@ export default function ScannedOrders() {
             </div>
 
             {isScanning && (
-                <div className="relative w-full max-w-2xl mx-auto">
-                    <div id="reader" className="w-full bg-black rounded-2xl border-2 border-primary overflow-hidden shadow-2xl aspect-video"></div>
-                    <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/50 bg-black/40 py-1">
-                        Align the barcode inside the center rectangle
-                    </p>
+                <div className="max-w-2xl mx-auto">
+                    <div className="relative bg-black rounded-2xl border-4 border-primary overflow-hidden shadow-2xl">
+                        {/* THE SCANNER ELEMENT */}
+                        <div id="reader" className="w-full aspect-video"></div>
+                        
+                        {/* Visual Rectangular Helper Overlay */}
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            <div className="w-[350px] h-[180px] border-2 border-primary border-dashed rounded-lg shadow-[0_0_0_999px_rgba(0,0,0,0.5)]">
+                                <div className="absolute -top-6 left-0 right-0 text-center text-primary text-[10px] font-bold uppercase tracking-widest">
+                                    Align Barcode Inside
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
-            <Card className="bg-card-bg border-border-subtle shadow-sm overflow-hidden">
+            <Card className="bg-card-bg border-border-subtle shadow-sm">
                 <div className="p-4 border-b border-border-subtle grid grid-cols-1 md:grid-cols-3 gap-4">
                     <input
                         type="date"
-                        className="bg-dashboard-bg border border-border-subtle rounded p-2 text-xs"
+                        className="bg-dashboard-bg border border-border-subtle rounded p-2 text-xs text-text-main"
                         value={filters.date}
                         onChange={(e) => setFilters({ ...filters, date: e.target.value, page: 1 })}
                     />
                     <select
-                        className="bg-dashboard-bg border border-border-subtle rounded p-2 text-xs"
+                        className="bg-dashboard-bg border border-border-subtle rounded p-2 text-xs text-text-main"
                         value={filters.status}
                         onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
                     >
@@ -220,7 +218,7 @@ export default function ScannedOrders() {
 
                 <div className="overflow-x-auto min-h-[400px] relative">
                     {loading && (
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10 backdrop-blur-sm">
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
                             <Loader2 className="animate-spin text-primary" size={40} />
                         </div>
                     )}
@@ -230,7 +228,7 @@ export default function ScannedOrders() {
                                 <th className="px-6 py-4">Order Number</th>
                                 <th className="px-6 py-4">Consignee</th>
                                 <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Last Update</th>
+                                <th className="px-6 py-4 text-right">Time</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle">
@@ -238,7 +236,7 @@ export default function ScannedOrders() {
                                 orders.map((o) => (
                                     <tr key={o.id} className="hover:bg-primary/5 transition-colors">
                                         <td className="px-6 py-4 font-bold text-text-main text-sm">{o.order_number}</td>
-                                        <td className="px-6 py-4 text-xs font-medium">{o.consignee?.name || "N/A"}</td>
+                                        <td className="px-6 py-4 text-xs">{o.consignee?.name || "N/A"}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded text-[10px] font-bold ${o.status === 'Picked' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'}`}>
                                                 <CheckCircle2 size={12} className="inline mr-1"/> {o.status}
@@ -253,7 +251,7 @@ export default function ScannedOrders() {
                                 <tr>
                                     <td colSpan={4} className="py-24 text-center text-text-muted italic">
                                         <PackageSearch className="mx-auto mb-2 opacity-20" size={40} />
-                                        No Picked orders found for today.
+                                        No scanned items found
                                     </td>
                                 </tr>
                             )}
