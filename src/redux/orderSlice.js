@@ -2,6 +2,8 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import {
   createPickupAddressApi,
   fetchPickupAddressesApi,
+  updatePickupAddressApi,
+  deletePickupAddressApi,
   createConsigneeApi,
   fetchConsigneesApi,
   createOrderApi,
@@ -29,6 +31,33 @@ export const fetchPickupAddresses = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.detail || "Failed to fetch pickup addresses",
+      );
+    }
+  },
+);
+
+export const updatePickupAddress = createAsyncThunk(
+  "orders/updatePickupAddress",
+  async ({ id, data }, { rejectWithValue }) => {
+    try {
+      return await updatePickupAddressApi(id, data);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to update pickup address",
+      );
+    }
+  },
+);
+
+export const deletePickupAddress = createAsyncThunk(
+  "orders/deletePickupAddress",
+  async (id, { rejectWithValue }) => {
+    try {
+      await deletePickupAddressApi(id);
+      return id;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to delete pickup address",
       );
     }
   },
@@ -150,6 +179,20 @@ const orderSlice = createSlice({
       .addCase(fetchPickupAddresses.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+
+      .addCase(updatePickupAddress.fulfilled, (state, action) => {
+        state.loading = false;
+
+        state.pickupAddresses = state.pickupAddresses.map((addr) =>
+          addr.id === action.payload.id ? action.payload : addr,
+        );
+      })
+
+      .addCase(deletePickupAddress.fulfilled, (state, action) => {
+        state.pickupAddresses = state.pickupAddresses.filter(
+          (addr) => addr.id !== action.payload,
+        );
       })
 
       .addCase(fetchConsignees.pending, (state) => {
