@@ -36,7 +36,8 @@ export function ProcessingOrders() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [filters, setFilters] = useState({
-    dateRange: "",
+    startDate: "",
+    endDate: "",
     orderId: "",
     awb: "",
     buyerName: "",
@@ -144,38 +145,53 @@ export function ProcessingOrders() {
   const { orders, totalOrders, loading } = useSelector((state) => state.orders);
 
   useEffect(() => {
-    console.log("Orders:", orders);
-  }, [orders]);
-
-  useEffect(() => {
     let statusFromUrl = searchParams.get("status");
 
+    // default initial tab
+    if (!statusFromUrl) {
+      statusFromUrl = "processing";
+    }
+
+    // backend expects empty for all
     if (statusFromUrl === "all") {
-      statusFromUrl = ""; // backend expects empty
+      statusFromUrl = "";
     }
 
     dispatch(
       fetchOrders({
         page: 1,
         limit: filters.limit,
-        status: statusFromUrl || "",
+        status_filter: statusFromUrl,
       }),
     );
   }, [searchParams, filters.limit]);
 
   const handleSearch = () => {
-    dispatch(
-      fetchOrders({
-        page: 1,
-        limit: filters.limit,
-        status: filters.status || searchParams.get("status") || "processing",
-        order_id: filters.orderId,
-        awb: filters.awb,
-        buyer_name: filters.buyerName,
-        payment_method: filters.paymentMethod,
-        date_range: filters.dateRange,
-      }),
-    );
+    const currentStatus = searchParams.get("status");
+
+    const payload = {
+      page: 1,
+      limit: filters.limit,
+
+      status_filter:
+        filters.status ||
+        (currentStatus === "all" ? "" : currentStatus || "processing"),
+
+      order_id: filters.orderId,
+      awb_no: filters.awb,
+      buyer_name: filters.buyerName,
+      payment_method: filters.paymentMethod,
+    };
+
+    if (filters.startDate) {
+      payload.start_date = filters.startDate;
+    }
+
+    if (filters.endDate) {
+      payload.end_date = filters.endDate;
+    }
+
+    dispatch(fetchOrders(payload));
   };
 
   return (
@@ -299,21 +315,44 @@ export function ProcessingOrders() {
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted">
-                  Time Range
+                  Starting Date
                 </label>
+
                 <div className="relative">
                   <input
-                    type="text"
-                    value={filters.dateRange}
+                    type="date"
+                    value={filters.startDate}
                     onChange={(e) =>
-                      setFilters({ ...filters, dateRange: e.target.value })
+                      setFilters({ ...filters, startDate: e.target.value })
                     }
-                    placeholder="YYYY-MM-DD to YYYY-MM"
                     className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                   />
+
                   <Calendar
                     size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-text-muted">
+                  Ending Date
+                </label>
+
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) =>
+                      setFilters({ ...filters, endDate: e.target.value })
+                    }
+                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                  />
+
+                  <Calendar
+                    size={14}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
                   />
                 </div>
               </div>
@@ -441,7 +480,8 @@ export function ProcessingOrders() {
                   onClick={() => {
                     // 1. Reset local filters
                     setFilters({
-                      dateRange: "",
+                      startDate: "",
+                      endDate: "",
                       orderId: "",
                       awb: "",
                       buyerName: "",
@@ -454,7 +494,7 @@ export function ProcessingOrders() {
                     setSearchParams({});
 
                     // 3. Fetch fresh data
-                    dispatch(fetchOrders({ page: 1, limit: 25 }));
+                    dispatch(fetchOrders({ page: 1, limit: 25, status_filter: "processing" }));
                   }}
                   className="text-xs font-bold text-primary flex items-center gap-1 mt-2"
                 >
