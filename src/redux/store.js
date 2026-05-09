@@ -11,7 +11,7 @@ import remittanceReducer from "./remittanceSlice";
 import invoiceReducer from "./invoiceSlice";
 import consigneeReducer from "./consigneeSlice";
 import activityLogReducer from "./activityLogSlice";
-import bulkOrderReducer from "./bulkorderSlice";
+import bulkOrderReducer from "./bulkOrderSlice";
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -27,6 +27,7 @@ export const store = configureStore({
     invoices: invoiceReducer,
     activityLogs: activityLogReducer,
     bulkOrders: bulkOrderReducer,
+
   },
 });
 
