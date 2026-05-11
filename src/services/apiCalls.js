@@ -254,6 +254,28 @@ export const fetchOrdersApi = async (params) => {
   return res.data;
 };
 
+export const duplicateOrderApi = async (orderId) => {
+  const res = await API.post(`/orders/${orderId}/duplicate`);
+  return res.data;
+};
+
+export const updateOrderApi = async (orderId, data) => {
+  const res = await API.patch(`/orders/${orderId}/`, data);
+
+  return res.data;
+};
+
+export const deleteOrderApi = async (orderId) => {
+  const res = await API.delete(`/orders/${orderId}/`);
+
+  return res.data;
+};
+
+export const fetchOrderCountsApi = async () => {
+  const res = await API.get("/orders/counts");
+  return res.data;
+};
+
 export const fetchWalletTransactionsApi = async (params) => {
   const cleanParams = Object.fromEntries(
     Object.entries(params).filter(
@@ -294,22 +316,17 @@ export const getOrderPincodeApi = async (orderNumber, lat, lng) => {
   console.log("📤 JSON Body:", body);
 
   try {
-    const res = await API.post(
-      `/orders/get-pincode/${orderNumber}`,
-      body
-    );
+    const res = await API.post(`/orders/get-pincode/${orderNumber}`, body);
 
     console.log("✅ API SUCCESS");
     console.log("📥 Response:", res.data);
 
     return res.data;
-
   } catch (error) {
     console.error("❌ API ERROR:", error);
     throw error;
   }
 };
-
 
 export const scanOrderApi = async (orderNumber) => {
   const res = await API.get(`/orders/scan/${orderNumber}`);
@@ -325,8 +342,8 @@ export const fetchTodayScannedOrdersApi = async (filters) => {
     params: {
       status: status,
       page: page,
-      limit: limit
-    }
+      limit: limit,
+    },
   };
 
   const res = await API.post("/orders/orders/today-status", body, config);
@@ -341,12 +358,11 @@ export const getOrderBarcodeApi = async (orderId) => {
 
 export const fetchActivityLogsApi = async (params) => {
   const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([_, v]) => v != null && v !== "")
+    Object.entries(params).filter(([_, v]) => v != null && v !== ""),
   );
   const res = await API.get(ENDPOINTS.ACTIVITY_LOGS, { params: cleanParams });
   return res.data;
 };
-
 
 export const uploadBulkOrderApi = async (formData) => {
   const res = await API.post(ENDPOINTS.BULK_ORDER_UPLOAD, formData, {

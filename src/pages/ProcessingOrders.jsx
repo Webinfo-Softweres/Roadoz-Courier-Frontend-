@@ -22,18 +22,37 @@ import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 import Pagination from "../components/ui/Pagination";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { downloadInvoiceExcel } from "../lib/invoiceExcel";
 import { generateInvoicePDF } from "../lib/invoiceGenerator";
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchOrders } from "../redux/orderSlice";
+import {
+  fetchOrders,
+  fetchOrderCounts,
+  duplicateOrder,
+  deleteOrder,
+  updateOrder,
+  fetchPickupAddresses,
+} from "../redux/orderSlice";
 import OrderDetailsModal from "../components/modals/OrderDetailsModal";
+import EditWeightModal from "../components/modals/EditWeightModal";
+import ChangePickupAddressModal from "../components/modals/ChangePickupAddressModal";
+import toast from "react-hot-toast";
 
 export function ProcessingOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [selectedOrders, setSelectedOrders] = useState([]); 
+  const [selectedOrders, setSelectedOrders] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
+  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+
+  const [selectedPickupAddress, setSelectedPickupAddress] = useState("");
+
+  const [pickupOrderIds, setPickupOrderIds] = useState([]);
+
+  const [selectedWeightOrder, setSelectedWeightOrder] = useState(null);
+  const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
     startDate: "",
@@ -45,21 +64,6 @@ export function ProcessingOrders() {
     status: "",
     limit: 25,
   });
-
-  const tabs = [
-    { name: "Processing", count: 28, path: "/processing-order" },
-    { name: "All Orders", count: 109, path: "/all-orders" },
-    { name: "Manifested", count: 108, path: "/manifested" },
-    { name: "In Transit", count: 1, path: "/in-transit" },
-    { name: "NDR", count: 12, path: "/pending" },
-    { name: "OFD", count: 0, path: "/out-for-delivery" },
-    { name: "Delivered", count: 0, path: "/delivered" },
-    { name: "RTO In Transit", count: 0, path: "/rto-in-transit" },
-    { name: "RTO Delivered", count: 0, path: "/rto-delivered" },
-    { name: "Returned", count: 0, path: "/returned" },
-    { name: "Cancelled", count: 0, path: "/cancelled" },
-    { name: "Lost", count: 0, path: "/lost" },
-  ];
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -84,7 +88,7 @@ export function ProcessingOrders() {
     const status = tabStatusMap[tabName];
 
     if (!status) {
-      setSearchParams({ status: "all" }); 
+      setSearchParams({ status: "all" });
     } else {
       setSearchParams({ status });
     }
@@ -141,7 +145,73 @@ export function ProcessingOrders() {
 
   const dispatch = useDispatch();
 
-  const { orders, totalOrders, loading } = useSelector((state) => state.orders);
+  const { orders, totalOrders, loading, orderCounts, pickupAddresses } =
+    useSelector((state) => state.orders);
+
+  const statusCounts = orderCounts?.status_counts || {};
+
+  const tabs = [
+    {
+      name: "Processing",
+      count: statusCounts.Processing || 0,
+      path: "/processing-order",
+    },
+    {
+      name: "All Orders",
+      count: orderCounts?.total_orders || 0,
+      path: "/all-orders",
+    },
+    {
+      name: "Manifested",
+      count: statusCounts.Manifested || 0,
+      path: "/manifested",
+    },
+    {
+      name: "In Transit",
+      count: statusCounts.In_transit || 0,
+      path: "/in-transit",
+    },
+    {
+      name: "NDR",
+      count: statusCounts.Ndr || 0,
+      path: "/pending",
+    },
+    {
+      name: "OFD",
+      count: statusCounts.Ofd || 0,
+      path: "/out-for-delivery",
+    },
+    {
+      name: "Delivered",
+      count: statusCounts.Delivered || 0,
+      path: "/delivered",
+    },
+    {
+      name: "RTO In Transit",
+      count: statusCounts.Rto_in_transit || 0,
+      path: "/rto-in-transit",
+    },
+    {
+      name: "RTO Delivered",
+      count: statusCounts.Rto_delivered || 0,
+      path: "/rto-delivered",
+    },
+    {
+      name: "Returned",
+      count: statusCounts.Returned || 0,
+      path: "/returned",
+    },
+    {
+      name: "Cancelled",
+      count: statusCounts.Cancelled || 0,
+      path: "/cancelled",
+    },
+    {
+      name: "Lost",
+      count: statusCounts.Lost || 0,
+      path: "/lost",
+    },
+  ];
 
   useEffect(() => {
     let statusFromUrl = searchParams.get("status");
@@ -162,6 +232,14 @@ export function ProcessingOrders() {
       }),
     );
   }, [searchParams, filters.limit]);
+
+  useEffect(() => {
+    dispatch(fetchOrderCounts());
+  }, [dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchPickupAddresses());
+  }, [dispatch]);
 
   const handleSearch = () => {
     const currentStatus = searchParams.get("status");
@@ -189,6 +267,214 @@ export function ProcessingOrders() {
     }
 
     dispatch(fetchOrders(payload));
+  };
+
+  const handleDuplicateOrder = async (orderId) => {
+    const toastId = toast.loading("Duplicating order...");
+
+    try {
+      await dispatch(duplicateOrder(orderId)).unwrap();
+
+      dispatch(fetchOrderCounts());
+
+      toast.success("Order duplicated successfully", {
+        id: toastId,
+      });
+    } catch (error) {
+      console.error(error);
+
+      toast.error("Failed to duplicate order", {
+        id: toastId,
+      });
+    }
+  };
+
+  const handleDeleteOrders = async () => {
+    if (selectedOrders.length === 0) {
+      return toast.error("Please select at least one order");
+    }
+
+    const toastId = toast.loading("Deleting orders...");
+
+    try {
+      await Promise.all(
+        selectedOrders.map((id) => dispatch(deleteOrder(id)).unwrap()),
+      );
+
+      dispatch(fetchOrderCounts());
+
+      setSelectedOrders([]);
+
+      toast.success("Orders deleted successfully", {
+        id: toastId,
+      });
+    } catch (error) {
+      console.error(error);
+
+      toast.error("Failed to delete orders", {
+        id: toastId,
+      });
+    }
+  };
+
+  const handleUpdateWeight = async (packages) => {
+    const toastId = toast.loading("Updating weight...");
+
+    try {
+      const {
+        id,
+        pickup_address,
+        consignee,
+        warehouse_addresses,
+        items,
+        ...rest
+      } = selectedWeightOrder;
+
+      const payload = {
+        ...rest,
+
+        pickup_address_id: pickup_address?.id,
+
+        consignee_id: consignee?.id,
+
+        warehouse_addresses_id: warehouse_addresses?.id,
+
+        items: items.map((item) => ({
+          product_name: item.product_name,
+          sku: item.sku,
+          unit_price: item.unit_price,
+          qty: item.qty,
+          total: item.total,
+        })),
+
+        packages: packages.map((pkg) => {
+          const totalPhysicalWeight =
+            Number(pkg.physical_weight_kg || 0) * Number(pkg.count || 1);
+
+          const totalVolWeight =
+            Number(pkg.vol_weight_kg || 0) * Number(pkg.count || 1);
+
+          return {
+            count: Number(pkg.count),
+
+            length_cm: Number(pkg.length_cm),
+
+            breadth_cm: Number(pkg.breadth_cm),
+
+            height_cm: Number(pkg.height_cm),
+
+            physical_weight_kg: Number(totalPhysicalWeight.toFixed(2)),
+
+            vol_weight_kg: Number(totalVolWeight.toFixed(2)),
+          };
+        }),
+      };
+
+      await dispatch(
+        updateOrder({
+          orderId: id,
+          data: payload,
+        }),
+      ).unwrap();
+
+      dispatch(fetchOrderCounts());
+
+      toast.success("Weight updated successfully", {
+        id: toastId,
+      });
+
+      setIsWeightModalOpen(false);
+    } catch (error) {
+      console.error(error);
+
+      toast.error("Failed to update weight", {
+        id: toastId,
+      });
+    }
+  };
+
+  const handleChangePickupAddress = async () => {
+    if (!selectedPickupAddress) {
+      return toast.error("Please select pickup address");
+    }
+
+    const toastId = toast.loading("Updating pickup address...");
+
+    try {
+      const selectedPickup = pickupAddresses.find(
+        (addr) => addr.id === selectedPickupAddress,
+      );
+
+      await Promise.all(
+        pickupOrderIds.map((order) => {
+          if (!order) return null;
+
+          const payload = {
+            order_type: order.order_type,
+
+            pickup_address_id: selectedPickup.id,
+
+            consignee_id: order.consignee?.id,
+
+            payment_method: order.payment_method,
+
+            cod_amount: order.cod_amount || 0,
+
+            to_pay_amount: order.to_pay_amount || 0,
+
+            rov: order.rov || "owner_risk",
+
+            order_value: order.order_value || 0,
+
+            gst_number: order.gst_number || "",
+
+            eway_bill_number: order.eway_bill_number || "",
+
+            shipping_charge: order.shipping_charge || 0,
+
+            items: order.items.map((item) => ({
+              product_name: item.product_name,
+              sku: item.sku,
+              unit_price: item.unit_price,
+              qty: item.qty,
+              total: item.total,
+            })),
+
+            packages: order.packages.map((pkg) => ({
+              count: pkg.count,
+              length_cm: pkg.length_cm,
+              breadth_cm: pkg.breadth_cm,
+              height_cm: pkg.height_cm,
+              vol_weight_kg: pkg.vol_weight_kg,
+              physical_weight_kg: pkg.physical_weight_kg,
+            })),
+          };
+
+          return dispatch(
+            updateOrder({
+              orderId: order.id,
+              data: payload,
+            }),
+          ).unwrap();
+        }),
+      );
+
+      toast.success("Pickup address updated successfully", {
+        id: toastId,
+      });
+
+      setIsPickupModalOpen(false);
+
+      setPickupOrderIds([]);
+
+      setSelectedPickupAddress("");
+    } catch (error) {
+      console.error(error);
+
+      toast.error("Failed to update pickup address", {
+        id: toastId,
+      });
+    }
   };
 
   return (
@@ -220,13 +506,42 @@ export function ProcessingOrders() {
                   <Button className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9">
                     <Ship size={16} /> Ship
                   </Button>
-                  <Button className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9">
+                  <Button
+                    onClick={() => {
+                      if (selectedOrders.length === 0) {
+                        return toast.error("Please select at least one order");
+                      }
+
+                      const selectedOrdersData = orders.filter((o) =>
+                        selectedOrders.includes(o.id),
+                      );
+
+                      setPickupOrderIds(selectedOrdersData);
+
+                      // select current pickup address automatically
+                      const firstSelectedOrder = orders.find(
+                        (o) => o.id === selectedOrders[0],
+                      );
+
+                      if (firstSelectedOrder?.pickup_address?.id) {
+                        setSelectedPickupAddress(
+                          firstSelectedOrder.pickup_address.id,
+                        );
+                      }
+
+                      setIsPickupModalOpen(true);
+                    }}
+                    className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
+                  >
                     <MapPin size={16} /> Change Pickup Address
                   </Button>
                   <Button className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9">
                     <Download size={16} /> Export
                   </Button>
-                  <Button className="bg-red-500 text-white hover:bg-red-600 text-xs font-bold gap-2 h-9">
+                  <Button
+                    onClick={handleDeleteOrders}
+                    className="bg-red-500 text-white hover:bg-red-600 text-xs font-bold gap-2 h-9"
+                  >
                     <Trash2 size={16} /> Delete
                   </Button>
                 </>
@@ -581,7 +896,7 @@ export function ProcessingOrders() {
                     payment: {
                       method: order.payment_method || "N/A",
 
-                      total: `₹${order.order_value || 0}`, 
+                      total: `₹${order.order_value || 0}`,
 
                       payable:
                         order.payment_method === "COD"
@@ -713,11 +1028,40 @@ export function ProcessingOrders() {
                       )}
 
                       {isProcessing ? (
-                        <td className="px-6 py-6 text-[11px]">
-                          <p className="font-medium text-text-main">
-                            1 Box • {mappedOrder.weight}
-                          </p>
-                          <p className="text-text-muted">{mappedOrder.dims}</p>
+                        <td className="px-6 py-6">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-[11px] leading-relaxed">
+                              <p className="font-bold text-text-main">
+                                {order.packages?.[0]?.count || 1} Box •{" "}
+                                {order.packages?.[0]?.physical_weight_kg || 0}{" "}
+                                Kg
+                              </p>
+
+                              <p className="text-text-muted">
+                                ({order.packages?.[0]?.length_cm || 0}×
+                                {order.packages?.[0]?.breadth_cm || 0}×
+                                {order.packages?.[0]?.height_cm || 0} cm)
+                              </p>
+
+                              <p className="text-text-muted">
+                                Vol: {order.packages?.[0]?.vol_weight_kg || 0}{" "}
+                                kg • Wt:{" "}
+                                {order.packages?.[0]?.physical_weight_kg || 0}{" "}
+                                kg
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setSelectedWeightOrder(order);
+
+                                setIsWeightModalOpen(true);
+                              }}
+                              className="p-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors"
+                            >
+                              <Edit size={14} />
+                            </button>
+                          </div>
                         </td>
                       ) : (
                         <td className="px-6 py-6 text-xs font-bold text-text-main">
@@ -736,9 +1080,25 @@ export function ProcessingOrders() {
                               <button
                                 key={i}
                                 onClick={() => {
+                                  // VIEW
                                   if (Icon === Eye) {
                                     setSelectedOrder(mappedOrder);
                                     setIsModalOpen(true);
+                                  }
+
+                                  // DUPLICATE
+                                  if (Icon === Copy) {
+                                    handleDuplicateOrder(order.id);
+                                  }
+
+                                  // EDIT
+                                  if (Icon === Edit) {
+                                    navigate(
+                                      `/dashboard/edit-order/${order.id}`,
+                                      {
+                                        state: { order },
+                                      },
+                                    );
                                   }
                                 }}
                                 className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
@@ -785,6 +1145,21 @@ export function ProcessingOrders() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         order={selectedOrder}
+      />
+      <EditWeightModal
+        isOpen={isWeightModalOpen}
+        onClose={() => setIsWeightModalOpen(false)}
+        order={selectedWeightOrder}
+        onSave={handleUpdateWeight}
+      />
+      <ChangePickupAddressModal
+        isOpen={isPickupModalOpen}
+        onClose={() => setIsPickupModalOpen(false)}
+        pickupAddresses={pickupAddresses}
+        selectedPickupAddress={selectedPickupAddress}
+        setSelectedPickupAddress={setSelectedPickupAddress}
+        pickupOrderIds={pickupOrderIds}
+        onSubmit={handleChangePickupAddress}
       />
     </div>
   );

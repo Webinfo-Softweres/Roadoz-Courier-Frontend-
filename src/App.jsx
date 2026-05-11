@@ -138,6 +138,14 @@ export default function App() {
               }
             />
             <Route
+              path="edit-order/:orderId"
+              element={
+                <PermissionRoute permission="orders:edit">
+                  <NewOrder />
+                </PermissionRoute>
+              }
+            />
+            <Route
               path="processing-order"
               element={
                 <PermissionRoute permission="orders:view">
@@ -276,8 +284,6 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-
-
 
             {/* Settings */}
             <Route
