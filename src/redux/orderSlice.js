@@ -8,6 +8,10 @@ import {
   fetchConsigneesApi,
   createOrderApi,
   fetchOrdersApi,
+  fetchOrderCountsApi,
+  duplicateOrderApi,
+  updateOrderApi,
+  deleteOrderApi,
 } from "../services/apiCalls";
 
 export const createPickupAddress = createAsyncThunk(
@@ -115,6 +119,60 @@ export const fetchOrders = createAsyncThunk(
   },
 );
 
+export const fetchOrderCounts = createAsyncThunk(
+  "orders/fetchOrderCounts",
+  async (_, { rejectWithValue }) => {
+    try {
+      return await fetchOrderCountsApi();
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to fetch order counts",
+      );
+    }
+  },
+);
+
+export const duplicateOrder = createAsyncThunk(
+  "orders/duplicateOrder",
+  async (orderId, { rejectWithValue }) => {
+    try {
+      return await duplicateOrderApi(orderId);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to duplicate order",
+      );
+    }
+  },
+);
+
+export const updateOrder = createAsyncThunk(
+  "orders/updateOrder",
+  async ({ orderId, data }, { rejectWithValue }) => {
+    try {
+      return await updateOrderApi(orderId, data);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to update order",
+      );
+    }
+  },
+);
+
+export const deleteOrder = createAsyncThunk(
+  "orders/deleteOrder",
+  async (orderId, { rejectWithValue }) => {
+    try {
+      await deleteOrderApi(orderId);
+
+      return orderId;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to delete order",
+      );
+    }
+  },
+);
+
 const orderSlice = createSlice({
   name: "orders",
   initialState: {
@@ -122,6 +180,7 @@ const orderSlice = createSlice({
     consignees: [],
     orders: [],
     totalOrders: 0,
+    orderCounts: {},
     page: 1,
     limit: 10,
     selectedAddress: null,
@@ -237,6 +296,71 @@ const orderSlice = createSlice({
       })
       .addCase(fetchOrders.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchOrderCounts.pending, (state) => {
+        state.loading = true;
+      })
+
+      .addCase(fetchOrderCounts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orderCounts = action.payload;
+      })
+
+      .addCase(fetchOrderCounts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(duplicateOrder.pending, (state) => {
+        state.loading = true;
+      })
+
+      .addCase(duplicateOrder.fulfilled, (state, action) => {
+        state.loading = false;
+
+        // add duplicated order at top
+        state.orders.unshift(action.payload);
+
+        state.totalOrders += 1;
+      })
+
+      .addCase(duplicateOrder.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(updateOrder.pending, (state) => {
+        state.orderLoading = true;
+      })
+
+      .addCase(updateOrder.fulfilled, (state, action) => {
+        state.orderLoading = false;
+
+        state.orders = state.orders.map((order) =>
+          order.id === action.payload.id ? action.payload : order,
+        );
+      })
+
+      .addCase(updateOrder.rejected, (state, action) => {
+        state.orderLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(deleteOrder.pending, (state) => {
+        state.loading = true;
+      })
+
+      .addCase(deleteOrder.fulfilled, (state, action) => {
+        state.loading = false;
+
+        state.orders = state.orders.filter(
+          (order) => order.id !== action.payload,
+        );
+
+        state.totalOrders -= 1;
+      })
+
+      .addCase(deleteOrder.rejected, (state, action) => {
+        state.loading = false;
+
         state.error = action.payload;
       });
   },
