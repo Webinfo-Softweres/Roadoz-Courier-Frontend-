@@ -55,7 +55,6 @@ function calculateLabelHeight(order) {
 
   height += Math.max(30, addressLines * 3 + 12);
 
-  // Increased barcode section height
   height += 40;
 
   height += 9;
@@ -91,6 +90,29 @@ function calculateLabelHeight(order) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// SAFE DOWNLOAD FUNCTION (VERCEL FIX)
+// ─────────────────────────────────────────────────────────────
+function downloadPDF(doc, filename) {
+  const blob = doc.output("blob");
+
+  const url = window.URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+
+  link.href = url;
+
+  link.download = filename;
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  document.body.removeChild(link);
+
+  window.URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN FUNCTION
 // ─────────────────────────────────────────────────────────────
 export function generateShippingLabel(orders) {
@@ -114,7 +136,8 @@ export function generateShippingLabel(orders) {
     drawLabel(doc, order, pageHeight);
   });
 
-  doc.save("shipping_labels.pdf");
+  // FIXED FOR VERCEL
+  downloadPDF(doc, "shipping_labels.pdf");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -257,7 +280,6 @@ function drawLabel(doc, order, pageHeight) {
     align: "center",
   });
 
-  // USE BARCODE IMAGE FROM API RESPONSE
   try {
     let barcodeBase64 = order.barcode || "";
 
@@ -266,7 +288,6 @@ function drawLabel(doc, order, pageHeight) {
 
       const barcodeImage = `data:image/png;base64,${barcodeBase64}`;
 
-      // Increased barcode image height
       doc.addImage(
         barcodeImage,
         "PNG",
@@ -276,10 +297,10 @@ function drawLabel(doc, order, pageHeight) {
         16,
       );
     } else {
-      // fallback barcode generation
       const canvas = document.createElement("canvas");
 
-      JsBarcode(canvas, awbNo, {
+      // FIXED FOR VITE + VERCEL
+      JsBarcode.default(canvas, awbNo, {
         format: "CODE128",
         displayValue: true,
         fontSize: 16,
