@@ -550,42 +550,64 @@ export function ProcessingOrders() {
                 </>
               ) : (
                 <>
-                  <Button
-                    className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
-                    onClick={() => {
-                      try {
-                        console.log("BUTTON CLICKED");
+                  <div className="relative z-[99999] pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
 
-                        console.log("orders:", orders);
+                        alert("LABEL BUTTON CLICKED");
 
-                        console.log("selectedOrders:", selectedOrders);
+                        try {
+                          console.log("BUTTON CLICKED");
 
-                        if (!Array.isArray(orders)) {
-                          alert("Orders is not array");
-                          return;
+                          console.log("orders:", orders);
+
+                          console.log("selectedOrders:", selectedOrders);
+
+                          if (!Array.isArray(orders)) {
+                            alert("Orders is not array");
+                            return;
+                          }
+
+                          if (!selectedOrders?.length) {
+                            toast.error("Please select at least one order");
+                            return;
+                          }
+
+                          const selectedOrdersData = orders.filter((o) =>
+                            selectedOrders.includes(o.id),
+                          );
+
+                          console.log(
+                            "selectedOrdersData:",
+                            selectedOrdersData,
+                          );
+
+                          if (!selectedOrdersData.length) {
+                            alert("No matching orders found");
+                            return;
+                          }
+
+                          generateShippingLabel(selectedOrdersData);
+                        } catch (error) {
+                          console.error(error);
+
+                          alert(error.message);
                         }
-
-                        if (!selectedOrders?.length) {
-                          toast.error("Please select at least one order");
-                          return;
-                        }
-
-                        const selectedOrdersData = orders.filter((o) =>
-                          selectedOrders.includes(o.id),
-                        );
-
-                        console.log("selectedOrdersData:", selectedOrdersData);
-
-                        generateShippingLabel(selectedOrdersData);
-                      } catch (error) {
-                        console.error(error);
-
-                        alert(error.message);
-                      }
-                    }}
-                  >
-                    <Tag size={16} /> Labels
-                  </Button>
+                      }}
+                      className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9 px-4 rounded-md flex items-center relative z-[99999] pointer-events-auto"
+                      style={{
+                        pointerEvents: "auto",
+                        position: "relative",
+                        zIndex: 99999,
+                      }}
+                    >
+                      <Tag size={16} />
+                      Labels
+                    </button>
+                  </div>
                   {activeTab === "Manifested" && (
                     <Button className="bg-primary text-black text-xs font-bold h-9 px-4 gap-2">
                       <FileText size={16} /> Manifests
