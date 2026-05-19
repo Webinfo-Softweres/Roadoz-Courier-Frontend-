@@ -39,7 +39,7 @@ import OrderDetailsModal from "../components/modals/OrderDetailsModal";
 import EditWeightModal from "../components/modals/EditWeightModal";
 import ChangePickupAddressModal from "../components/modals/ChangePickupAddressModal";
 import toast from "react-hot-toast";
-import { generateInvoicePDF } from "../lib/generateInvoicePDF";
+import { generateInvoicePDF } from "../lib/generateInvoicePDf";
 import { mapOrderToInvoice } from "../lib/invoiceMapper";
 import { generateShippingLabel } from "../lib/generateShippingLabel";
 
@@ -550,64 +550,22 @@ export function ProcessingOrders() {
                 </>
               ) : (
                 <>
-                  <div className="relative z-[99999] pointer-events-auto">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
+                  <Button
+                    className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
+                    onClick={() => {
+                      if (selectedOrders.length === 0) {
+                        return toast.error("Please select at least one order");
+                      }
 
-                        alert("LABEL BUTTON CLICKED");
+                      const selectedOrdersData = orders.filter((o) =>
+                        selectedOrders.includes(o.id),
+                      );
 
-                        try {
-                          console.log("BUTTON CLICKED");
-
-                          console.log("orders:", orders);
-
-                          console.log("selectedOrders:", selectedOrders);
-
-                          if (!Array.isArray(orders)) {
-                            alert("Orders is not array");
-                            return;
-                          }
-
-                          if (!selectedOrders?.length) {
-                            toast.error("Please select at least one order");
-                            return;
-                          }
-
-                          const selectedOrdersData = orders.filter((o) =>
-                            selectedOrders.includes(o.id),
-                          );
-
-                          console.log(
-                            "selectedOrdersData:",
-                            selectedOrdersData,
-                          );
-
-                          if (!selectedOrdersData.length) {
-                            alert("No matching orders found");
-                            return;
-                          }
-
-                          generateShippingLabel(selectedOrdersData);
-                        } catch (error) {
-                          console.error(error);
-
-                          alert(error.message);
-                        }
-                      }}
-                      className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9 px-4 rounded-md flex items-center relative z-[99999] pointer-events-auto"
-                      style={{
-                        pointerEvents: "auto",
-                        position: "relative",
-                        zIndex: 99999,
-                      }}
-                    >
-                      <Tag size={16} />
-                      Labels
-                    </button>
-                  </div>
+                      generateShippingLabel(selectedOrdersData);
+                    }}
+                  >
+                    <Tag size={16} /> Labels
+                  </Button>
                   {activeTab === "Manifested" && (
                     <Button className="bg-primary text-black text-xs font-bold h-9 px-4 gap-2">
                       <FileText size={16} /> Manifests
