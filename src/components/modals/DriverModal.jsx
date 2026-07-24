@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Upload, Loader2, CheckCircle2, Landmark, FileText, User } from "lucide-react";
+import { X, Upload, Loader2, Landmark, FileText, User, Mail, Lock } from "lucide-react";
 import { Button } from "../ui/button";
 import { toast } from "react-hot-toast";
 import { 
@@ -12,21 +12,28 @@ export default function DriverModal({ isOpen, onClose, onSuccess, editData }) {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   
-  // Unified state for all fields
   const [formData, setFormData] = useState({
-    firstName: "", lastName: "", email: "", password: "", dob: "", phone: "",
+    firstName: "", 
+    lastName: "", 
+    email: "", 
+    password: "", 
+    dob: "", 
+    phone: "",
     status: "active",
-    accountHolderName: "", bankName: "", accountNumber: "", ifscOrRoutingCode: "",
-    license_front: null, license_back: null, vehicle_insurance: null
+    accountHolderName: "", 
+    bankName: "", 
+    accountNumber: "", 
+    ifscOrRoutingCode: "",
+    license_front: null, 
+    license_back: null, 
+    vehicle_insurance: null
   });
 
-  // Fetch full details when editData changes
   useEffect(() => {
     if (isOpen) {
       if (editData?.id) {
         loadFullDetails(editData.id);
       } else {
-        // Reset for new driver
         setFormData({
           firstName: "", lastName: "", email: "", password: "", dob: "", phone: "",
           status: "active", accountHolderName: "", bankName: "", accountNumber: "", 
@@ -40,11 +47,11 @@ export default function DriverModal({ isOpen, onClose, onSuccess, editData }) {
     setFetching(true);
     try {
       const data = await fetchDriverByIdApi(id);
-      // Map API snake_case to Form camelCase
       setFormData({
         firstName: data.first_name || "",
         lastName: data.last_name || "",
         email: data.email || "",
+        password: "", // Usually don't pre-fill password for security
         dob: data.dob || "",
         phone: data.phone || "",
         status: data.status || "active",
@@ -52,7 +59,7 @@ export default function DriverModal({ isOpen, onClose, onSuccess, editData }) {
         bankName: data.payout_account?.bank_name || "",
         accountNumber: data.payout_account?.account_number || "",
         ifscOrRoutingCode: data.payout_account?.ifsc_or_routing_code || "",
-        license_front: null, // Keep files null unless user picks new ones
+        license_front: null,
         license_back: null,
         vehicle_insurance: null
       });
@@ -65,40 +72,56 @@ export default function DriverModal({ isOpen, onClose, onSuccess, editData }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Simple Validation
+    if (!formData.email.includes("@")) {
+      return toast.error("Please enter a valid email address");
+    }
+    if (!editData && formData.password.length < 8) {
+      return toast.error("Password must be at least 8 characters");
+    }
+
     setLoading(true);
 
     try {
-      // Use FormData to support files and text fields
-      const payload = {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        phone: formData.phone,
-        dob: formData.dob,
-        status: formData.status,
-        accountHolderName: formData.accountHolderName,
-        bankName: formData.bankName,
-        accountNumber: formData.accountNumber,
-        ifscOrRoutingCode: formData.ifscOrRoutingCode,
-      };
+      // Use FormData to support file uploads correctly
+      const data = new FormData();
+      data.append("first_name", formData.firstName);
+      data.append("last_name", formData.lastName);
+      data.append("email", formData.email);
+      data.append("phone", formData.phone);
+      data.append("dob", formData.dob);
+      data.append("status", formData.status);
+      
+      // Only append password if it's a new driver or if updating password
+      if (formData.password) {
+        data.append("password", formData.password);
+      }
 
-      // Only add files if they were newly selected
-      if (formData.license_front) payload.license_front = formData.license_front;
-      if (formData.license_back) payload.license_back = formData.license_back;
-      if (formData.vehicle_insurance) payload.vehicle_insurance = formData.vehicle_insurance;
+      // Banking
+      data.append("account_holder_name", formData.accountHolderName);
+      data.append("bank_name", formData.bankName);
+      data.append("account_number", formData.accountNumber);
+      data.append("ifsc_or_routing_code", formData.ifscOrRoutingCode);
+
+      // Files
+      if (formData.license_front) data.append("license_front", formData.license_front);
+      if (formData.license_back) data.append("license_back", formData.license_back);
+      if (formData.vehicle_insurance) data.append("vehicle_insurance", formData.vehicle_insurance);
 
       if (editData) {
-        await updateDriverApi(editData.id, payload);
+        await updateDriverApi(editData.id, data);
         toast.success("Driver updated successfully");
       } else {
-        // If creating, you might need a different flow or handle it here
-        await createDriverApi({ ...formData, first_name: formData.firstName, last_name: formData.lastName });
-        toast.success("Driver created successfully");
+        await createDriverApi(data);
+        toast.success("Driver registered successfully");
       }
       
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(editData ? "Update failed" : "Registration failed");
+      const errorMsg = err.response?.data?.detail?.[0]?.msg || (editData ? "Update failed" : "Registration failed");
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -141,8 +164,25 @@ export default function DriverModal({ isOpen, onClose, onSuccess, editData }) {
                 <div className="grid grid-cols-2 gap-4">
                   <FormInput label="First Name" value={formData.firstName} onChange={v => setFormData({...formData, firstName: v})} />
                   <FormInput label="Last Name" value={formData.lastName} onChange={v => setFormData({...formData, lastName: v})} />
+                  
+                  <div className="col-span-2 grid grid-cols-2 gap-4">
+                    <FormInput 
+                      label="Email Address" 
+                      type="email" 
+                      value={formData.email} 
+                      onChange={v => setFormData({...formData, email: v})} 
+                    />
+                    <FormInput 
+                      label={editData ? "New Password (Optional)" : "Password (Min 8 characters)"} 
+                      type="password" 
+                      value={formData.password} 
+                      onChange={v => setFormData({...formData, password: v})} 
+                    />
+                  </div>
+
                   <FormInput label="Phone" value={formData.phone} onChange={v => setFormData({...formData, phone: v})} />
                   <FormInput label="Date of Birth" type="date" value={formData.dob} onChange={v => setFormData({...formData, dob: v})} />
+                  
                   {editData && (
                     <div className="col-span-2">
                       <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Account Status</label>
@@ -185,7 +225,7 @@ export default function DriverModal({ isOpen, onClose, onSuccess, editData }) {
                   {['license_front', 'license_back', 'vehicle_insurance'].map(field => (
                     <div key={field} className="flex items-center justify-between p-4 bg-dashboard-bg/20 border border-dashed border-border-subtle rounded-2xl group hover:border-primary transition-all">
                       <div>
-                        <p className="text-[11px] font-bold text-text-main uppercase">{field.replace('_', ' ')}</p>
+                        <p className="text-[11px] font-bold text-text-main uppercase">{field.replace(/_/g, ' ')}</p>
                         <p className="text-[9px] text-text-muted uppercase">
                           {formData[field] ? formData[field].name : (editData ? "Keep existing or upload new" : "No file selected")}
                         </p>
@@ -199,7 +239,7 @@ export default function DriverModal({ isOpen, onClose, onSuccess, editData }) {
                 </div>
               </section>
 
-              <Button disabled={loading} className="w-full bg-primary text-black font-black h-14 rounded-2xl shadow-lg hover:shadow-primary/30 transition-all uppercase tracking-widest">
+              <Button type="submit" disabled={loading} className="w-full bg-primary text-black font-black h-14 rounded-2xl shadow-lg hover:shadow-primary/30 transition-all uppercase tracking-widest">
                 {loading ? <Loader2 className="animate-spin" /> : editData ? "Update Driver Record" : "Register New Driver"}
               </Button>
             </form>
@@ -215,7 +255,10 @@ function FormInput({ label, type = "text", value, onChange }) {
     <div className="space-y-1">
       <label className="text-[10px] font-bold text-text-muted uppercase ml-1">{label}</label>
       <input 
-        type={type} value={value} onChange={e => onChange(e.target.value)}
+        type={type} 
+        value={value} 
+        onChange={e => onChange(e.target.value)}
+        required={type !== "password" || !value} // Basic requirement check
         className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main outline-none focus:border-primary transition-all" 
       />
     </div>
