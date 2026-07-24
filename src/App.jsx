@@ -328,23 +328,43 @@ export default function App() {
             {/* Trip & Fleet Management */}
             <Route
               path="trip/trip-sheet"
-              element={<PermissionRoute permission="tripsheet:view"><TripSheetRegistry /></PermissionRoute>}
+              element={
+                <PermissionRoute permission="tripsheet:view">
+                  <TripSheetRegistry />
+                </PermissionRoute>
+              }
             />
             <Route
               path="trip/create"
-              element={<PermissionRoute permission="tripsheet:create"><TripSheet /></PermissionRoute>}
+              element={
+                <PermissionRoute permission="tripsheet:create">
+                  <TripSheet />
+                </PermissionRoute>
+              }
             />
             <Route
               path="trip/edit/:id"
-              element={<PermissionRoute permission="tripsheet:update"><TripSheet /></PermissionRoute>}
+              element={
+                <PermissionRoute permission="tripsheet:update">
+                  <TripSheet />
+                </PermissionRoute>
+              }
             />
             <Route
               path="trip/vehicles"
-              element={<PermissionRoute permission="fleet:vehicle:view"><VehicleRegistry /></PermissionRoute>}
+              element={
+                <PermissionRoute permission="vehicle:view"> {/* Corrected from fleet:vehicle:view */}
+                  <VehicleRegistry />
+                </PermissionRoute>
+              }
             />
             <Route
               path="trip/drivers"
-              element={<PermissionRoute permission="fleet:drivers:view"><DriverRegistry /></PermissionRoute>}
+              element={
+                <PermissionRoute permission="drivers:view">
+                  <DriverRegistry />
+                </PermissionRoute>
+              }
             />
             <Route
               path="consignees"
