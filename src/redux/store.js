@@ -22,6 +22,9 @@ import scannedOrderReducer from "./scannedorder";
 import franchiseAppReducer from "./franchiseAppSlice";
 import chatReducer from "./chatSlice"; 
 import tripReducer from "./tripSlice";
+import orderApprovalReducer from "./orderApprovalSlice"; 
+
+
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -47,5 +50,7 @@ export const store = configureStore({
     franchiseApp: franchiseAppReducer, 
     chat: chatReducer,
     trip: tripReducer,
+    orderApproval: orderApprovalReducer, 
+    
   },
 });

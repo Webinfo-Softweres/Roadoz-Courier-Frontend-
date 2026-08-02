@@ -76,6 +76,7 @@ export default function TripSheetRegistry() {
   const getDestinationLabel = (t) => {
     if (t.destination_franchise?.name) return t.destination_franchise.name;
     if (t.destination_city) return t.destination_city;
+    
     return "N/A";
   };
 

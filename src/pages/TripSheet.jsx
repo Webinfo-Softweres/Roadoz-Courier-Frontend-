@@ -10,9 +10,11 @@ import {
 import { toast } from "react-hot-toast";
 import { Html5Qrcode } from "html5-qrcode";
 import { cn } from "../lib/utils";
+// Added captureLocationApi to imports
 import {
     fetchTripDriversApi, fetchTripVehiclesApi, fetchTripFranchisesApi,
-    scanOrderForTripApi, createTripSheetApi, fetchTripSheetDetailsApi, updateTripSheetApi
+    scanOrderForTripApi, createTripSheetApi, fetchTripSheetDetailsApi, 
+    updateTripSheetApi, captureLocationApi 
 } from "../services/apiCalls";
 
 const KERALA_CITIES = [
@@ -107,7 +109,6 @@ export default function TripSheetForm() {
     const [isScanning, setIsScanning] = useState(false);
     const [manualCode, setManualCode] = useState("");
 
-    // Toggle for Hubs (Franchises) - Optional field enable/disable
     const [useHubs, setUseHubs] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -116,15 +117,55 @@ export default function TripSheetForm() {
         destination_franchise_id: null,
         route_franchise_ids: [],
         destination_city: "",
-        route_city: [], // Multi-select array
+        route_city: [], 
         is_local: false,
         barcodes: [],
-        scannedItems: []
+        scannedItems: [],
+        lat: null,
+        lng: null
     });
 
     const [masters, setMasters] = useState({ drivers: [], vehicles: [], franchises: [] });
     const hiddenInputRef = useRef(null);
     const html5QrCode = useRef(null);
+
+    // EFFECT: Get Geolocation and Trigger captureLocationApi
+    useEffect(() => {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    
+                    // 1. Update Local State
+                    setFormData(prev => ({
+                        ...prev,
+                        lat: latitude,
+                        lng: longitude
+                    }));
+
+                    // 2. Trigger captureLocationApi immediately
+                    try {
+                        await captureLocationApi({
+                            latitude: latitude,
+                            longitude: longitude,
+                            source: "trip_sheet_form_open",
+                            reference_id: id || "new_trip"
+                        });
+                        console.log("Location captured and saved to backend:", latitude, longitude);
+                    } catch (error) {
+                        console.error("Failed to send location to server", error);
+                    }
+                },
+                (error) => {
+                    console.error("Error obtaining location", error);
+                    toast.error("Could not capture location. Please ensure GPS is on.");
+                },
+                { enableHighAccuracy: true }
+            );
+        } else {
+            console.error("Geolocation not supported");
+        }
+    }, [id]); // Runs once on mount, or if ID changes
 
     useEffect(() => {
         const init = async () => {
@@ -149,7 +190,8 @@ export default function TripSheetForm() {
                         }
                     }));
 
-                    setFormData({
+                    setFormData(prev => ({
+                        ...prev,
                         driver_id: trip.driver_id,
                         vehicle_id: trip.vehicle_id,
                         destination_franchise_id: trip.destination_franchise_id || null,
@@ -159,7 +201,7 @@ export default function TripSheetForm() {
                         is_local: trip.is_local || false,
                         barcodes: normalizedItems.map(o => o.order_number),
                         scannedItems: normalizedItems
-                    });
+                    }));
 
                     if (trip.destination_franchise_id || (trip.route_franchise_ids?.length > 0)) {
                         setUseHubs(true);
@@ -204,12 +246,13 @@ export default function TripSheetForm() {
             driver_id: formData.driver_id,
             vehicle_id: formData.vehicle_id,
             destination_city: formData.destination_city,
-            route_city: formData.route_city, // Sending the array of selected cities
+            route_city: formData.route_city,
             is_local: formData.is_local,
             barcodes: formData.barcodes,
-            // Franchise data is optional based on toggle
             destination_franchise_id: useHubs ? formData.destination_franchise_id : null,
             route_franchise_ids: useHubs ? formData.route_franchise_ids : [],
+            lat: formData.lat,
+            lng: formData.lng
         };
 
         try {
@@ -217,7 +260,10 @@ export default function TripSheetForm() {
             else await createTripSheetApi(payload);
             toast.success("Manifest Saved");
             navigate("/dashboard/trip/trip-sheet");
-        } catch (err) { toast.error("Save failed"); }
+        } catch (err) { 
+            console.error(err);
+            toast.error("Save failed"); 
+        }
         finally { setLoading(false); }
     };
 
@@ -246,7 +292,10 @@ export default function TripSheetForm() {
                     <Button variant="ghost" onClick={() => navigate(-1)} className="rounded-full h-10 w-10 p-0 text-text-muted hover:bg-primary hover:text-black"><ChevronLeft /></Button>
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold text-text-main uppercase tracking-tight">{isEditMode ? "Edit Manifest" : "New Manifest"}</h1>
-                        <p className="text-xs text-primary mt-1 font-medium flex items-center gap-1"><Truck size={12} /> Dispatch Unit</p>
+                        <p className="text-xs text-primary mt-1 font-medium flex items-center gap-1">
+                            <Truck size={12} /> Dispatch Unit 
+                            {formData.lat && <span className="text-text-muted ml-2">• Location Active</span>}
+                        </p>
                     </div>
                 </div>
                 <Button onClick={handleSave} disabled={loading} className="bg-primary hover:bg-primary/90 text-black font-bold h-11 px-8 rounded-xl shadow-lg">
@@ -255,9 +304,7 @@ export default function TripSheetForm() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
                 <div className="lg:col-span-4 space-y-6">
-                    {/* CORE LOGISTICS */}
                     <Card className="bg-card-bg border-border-subtle rounded-2xl shadow-sm overflow-visible">
                         <div className="p-4 border-b border-border-subtle bg-dashboard-bg/50">
                             <h3 className="text-[10px] font-black text-text-main uppercase tracking-[0.2em] flex items-center gap-2"><Truck size={14} className="text-primary" /> Vehicle & Destination</h3>
@@ -265,19 +312,14 @@ export default function TripSheetForm() {
                         <CardContent className="p-6 space-y-5">
                             <SearchableSelect label="Assign Driver *" placeholder="Search Driver" options={masters.drivers} value={formData.driver_id} onChange={(val) => setFormData({ ...formData, driver_id: val })} />
                             <SearchableSelect label="Assign Vehicle *" placeholder="Search Vehicle" options={masters.vehicles} value={formData.vehicle_id} onChange={(val) => setFormData({ ...formData, vehicle_id: val })} />
-
-
                         </CardContent>
                     </Card>
 
-                    {/* ROUTING CARD */}
                     <Card className="bg-card-bg border-border-subtle rounded-2xl shadow-sm overflow-visible">
                         <div className="p-4 border-b border-border-subtle bg-dashboard-bg/50 flex justify-between items-center">
                             <h3 className="text-[10px] font-black text-text-main uppercase tracking-[0.2em] flex items-center gap-2"><Map size={14} className="text-primary" /> Route Planning</h3>
                         </div>
-
                         <CardContent className="p-6 space-y-6">
-                            {/* MULTI-SELECT CITIES */}
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase text-text-muted ml-1">Route Cities (Multi-Select)</label>
                                 <div className="bg-dashboard-bg border border-border-subtle rounded-md p-2 max-h-40 overflow-y-auto custom-scrollbar grid grid-cols-1 gap-1">
@@ -314,14 +356,13 @@ export default function TripSheetForm() {
                                 </div>
                             </div>
                             <hr className="border-border-subtle/50" />
-
-                            {/* FRANCHISE SECTION (OPTIONAL) */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[10px] font-bold uppercase text-text-muted flex items-center gap-2">
                                         <Building2 size={12} /> Hub Routing
                                     </label>
                                     <button
+                                        type="button"
                                         onClick={() => setUseHubs(!useHubs)}
                                         className={cn("text-[9px] font-bold px-2 py-1 rounded border",
                                             useHubs ? "bg-primary/20 border-primary text-primary" : "bg-dashboard-bg border-border-subtle text-text-muted")}
@@ -361,7 +402,6 @@ export default function TripSheetForm() {
                 </div>
 
                 <div className="lg:col-span-8 space-y-4">
-                    {/* SCANNER CONTROLS */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className={cn("p-4 rounded-xl border border-dashed flex flex-col gap-2 transition-colors", isScanning ? "border-red-500 bg-red-500/5" : "border-primary/40 bg-primary/5")}>
                             <div className="flex justify-between items-center">
@@ -379,7 +419,6 @@ export default function TripSheetForm() {
                         </div>
                     </div>
 
-                    {/* MANIFEST TABLE */}
                     <Card className="bg-card-bg border-border-subtle rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
                         <div className="p-4 border-b border-border-subtle bg-dashboard-bg/50 flex justify-between items-center">
                             <h3 className="text-[10px] font-black uppercase tracking-widest text-text-main">Loading Manifest ({formData.barcodes.length})</h3>
