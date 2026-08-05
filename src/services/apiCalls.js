@@ -822,11 +822,11 @@ export const createDeliveryAssignmentApi = async (data) => {
 
 export const fetchDriverLocationsApi = async () => {
   const res = await API.get("/website/fleet/drivers/locations");
-  return res.data;
+  return res.data; 
 };
 
-// Fetch drivers with pagination and search
 export const fetchDriversListApi = async (params) => {
   const res = await API.get("/website/fleet/drivers", { params });
-  return res.data;
+  return res.data; 
 };
+

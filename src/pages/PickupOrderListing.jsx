@@ -10,16 +10,15 @@ import { Button } from "../components/ui/button";
 import Pagination from "../components/ui/Pagination";
 import { fetchOrdersByEntity } from "../redux/orderSlice";
 import { cn } from "../lib/utils";
-import { downloadInvoiceExcel } from "../lib/invoiceExcel"; // Ensure this path is correct
+import { downloadInvoiceExcel } from "../lib/invoiceExcel"; 
 import toast from "react-hot-toast";
 
 export function PickupOrderListing() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   
-  // State matching your API Swagger Image
   const [filters, setFilters] = useState({
-    search_by: "pickup_address", // Required: 'pickup_address' or 'consignee'
+    search_by: "pickup_address", 
     name: "",
     pincode: "",
     start_date: "",
@@ -29,21 +28,14 @@ export function PickupOrderListing() {
 
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Redux Selectors
   const { orders, totalOrders, totalPages, loading } = useSelector((state) => state.orders);
 
-  // Fetch Logic
+  // FETCH LOGIC - Validation removed to allow "List All"
   const fetchData = (page = 1) => {
-    // Only search if a name or pincode is provided to avoid empty required searches
-    if (!filters.name.trim() && !filters.pincode.trim()) {
-        toast.error("Please enter a Name or Pincode to search");
-        return;
-    }
-
     dispatch(fetchOrdersByEntity({
       search_by: filters.search_by,
-      name: filters.name || undefined,
-      pincode: filters.pincode || undefined,
+      name: filters.name.trim() || undefined, // Send undefined if empty
+      pincode: filters.pincode.trim() || undefined,
       start_date: filters.start_date || undefined,
       end_date: filters.end_date || undefined,
       page: page,
@@ -51,10 +43,9 @@ export function PickupOrderListing() {
     }));
   };
 
+  // EFFECT - Triggered on mount and whenever page/limit changes
   useEffect(() => {
-    if (filters.name || filters.pincode) {
-      fetchData(currentPage);
-    }
+    fetchData(currentPage);
   }, [currentPage, filters.limit]);
 
   const handleSearchSubmit = (e) => {
@@ -64,15 +55,18 @@ export function PickupOrderListing() {
   };
 
   const clearFilters = () => {
-    setFilters({
+    const defaultFilters = {
       search_by: "pickup_address",
       name: "",
       pincode: "",
       start_date: "",
       end_date: "",
       limit: 10,
-    });
+    };
+    setFilters(defaultFilters);
     setCurrentPage(1);
+    // Explicitly fetch with defaults
+    dispatch(fetchOrdersByEntity({ ...defaultFilters, page: 1 }));
   };
 
   const handleExport = () => {
@@ -118,12 +112,11 @@ export function PickupOrderListing() {
         </div>
       </div>
 
-      {/* API Filter Card (Based on Swagger Image) */}
+      {/* Filter Card */}
       <Card className="bg-card-bg border-border-subtle shadow-sm">
         <CardContent className="p-6">
           <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
             
-            {/* search_by (Required Field) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-primary uppercase tracking-widest">search_by *</label>
               <select 
@@ -136,7 +129,6 @@ export function PickupOrderListing() {
               </select>
             </div>
 
-            {/* name (query) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Name</label>
               <div className="relative">
@@ -151,7 +143,6 @@ export function PickupOrderListing() {
               </div>
             </div>
 
-            {/* pincode (query) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Pincode</label>
               <div className="relative">
@@ -166,7 +157,6 @@ export function PickupOrderListing() {
               </div>
             </div>
 
-            {/* start_date (query) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Start Date</label>
               <div className="relative">
@@ -180,7 +170,6 @@ export function PickupOrderListing() {
               </div>
             </div>
 
-            {/* end_date (query) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">End Date</label>
               <div className="relative">
@@ -194,7 +183,6 @@ export function PickupOrderListing() {
               </div>
             </div>
 
-            {/* Filter Actions */}
             <div className="flex gap-2">
               <Button type="submit" className="flex-1 bg-primary text-black font-bold h-[42px] uppercase text-xs tracking-wider shadow-md">
                 <Filter size={14} className="mr-2"/> Filter
@@ -207,13 +195,13 @@ export function PickupOrderListing() {
         </CardContent>
       </Card>
 
-      {/* Results Table Section */}
+      {/* Results Table */}
       <Card className="bg-card-bg border-border-subtle overflow-hidden shadow-sm">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <Loader2 className="animate-spin text-primary" size={48} />
-              <p className="text-text-muted font-medium tracking-wide">Retrieving data from API...</p>
+              <p className="text-text-muted font-medium tracking-wide">Retrieving data...</p>
             </div>
           ) : orders.length > 0 ? (
             <>
@@ -235,46 +223,27 @@ export function PickupOrderListing() {
                         <td className="px-6 py-5">
                           <p className="text-sm font-bold text-primary">#{order.order_number}</p>
                           <p className="text-[10px] text-text-muted mt-1 font-medium">{formatDateTime(order.created_at)}</p>
-                          <div className="mt-2">
-                            <span className="text-[9px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold uppercase">
-                                {order.order_type}
-                            </span>
-                          </div>
                         </td>
                         <td className="px-6 py-5">
                           <div className={cn("p-2 rounded-lg", filters.search_by === 'pickup_address' ? "bg-primary/10 border border-primary/30" : "opacity-60")}>
                             <p className="text-xs font-bold text-text-main">{order.pickup_address?.contact_name || 'N/A'}</p>
-                            <p className="text-[10px] text-text-muted mt-1">{order.pickup_address?.phone}</p>
                             <p className="text-[10px] text-text-muted">{order.pickup_address?.pincode}</p>
                           </div>
                         </td>
                         <td className="px-6 py-5">
                           <div className={cn("p-2 rounded-lg", filters.search_by === 'consignee' ? "bg-primary/10 border border-primary/30" : "opacity-60")}>
                             <p className="text-xs font-bold text-text-main">{order.consignee?.name || 'N/A'}</p>
-                            <p className="text-[10px] text-text-muted mt-1">{order.consignee?.mobile}</p>
                             <p className="text-[10px] text-text-muted">{order.consignee?.pincode}</p>
                           </div>
                         </td>
-                        <td className="px-6 py-5">
-                           <div className="flex items-center gap-2 text-xs font-bold text-text-main">
-                              <span>{order.pickup_address?.city}</span>
-                              <ArrowRight size={12} className="text-text-muted" />
-                              <span>{order.consignee?.city}</span>
-                           </div>
+                        <td className="px-6 py-5 text-xs font-bold">
+                           {order.pickup_address?.city} → {order.consignee?.city}
                         </td>
-                        <td className="px-6 py-5">
-                          <div className="space-y-1">
-                            <span className={cn(
-                                "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                                order.payment_method === 'COD' ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"
-                            )}>
-                                {order.payment_method}
-                            </span>
-                            <p className="text-xs font-bold mt-1">₹{order.grand_total?.toLocaleString()}</p>
-                          </div>
+                        <td className="px-6 py-5 text-xs font-bold">
+                          ₹{order.grand_total?.toLocaleString()}
                         </td>
                         <td className="px-6 py-5 text-center">
-                          <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-tighter">
+                          <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-3 py-1 rounded-full uppercase">
                             {order.status}
                           </span>
                         </td>
@@ -283,7 +252,6 @@ export function PickupOrderListing() {
                   </tbody>
                 </table>
               </div>
-              
               <div className="p-4 border-t border-border-subtle bg-dashboard-bg/5">
                 <Pagination
                   currentPage={currentPage}
@@ -296,13 +264,8 @@ export function PickupOrderListing() {
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="w-20 h-20 bg-dashboard-bg rounded-full flex items-center justify-center mb-4 border border-border-subtle">
-                <Search size={40} className="text-text-muted" />
-              </div>
-              <h3 className="text-lg font-bold text-text-main">No Search Results</h3>
-              <p className="text-sm text-text-muted max-w-sm mt-2">
-                Enter your search criteria above and click filter to see the order list.
-              </p>
+              <Search size={40} className="text-text-muted mb-4" />
+              <h3 className="text-lg font-bold text-text-main">No Orders Found</h3>
             </div>
           )}
         </CardContent>

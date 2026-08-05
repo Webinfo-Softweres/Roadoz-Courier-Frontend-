@@ -7,19 +7,20 @@ import {
   Download, Table, Filter, Loader2, 
   FileSpreadsheet, FileText, BarChart3, Truck, 
   Settings, Wallet, Landmark, ShieldCheck, 
-  Briefcase, Database, TrendingUp, AlertCircle, User, Calendar,
-  ArrowUpRight, Landmark as BankIcon
+  Briefcase, Database, TrendingUp, User, Calendar,
+  ArrowUpRight, CreditCard
 } from "lucide-react";
 
 import { fetchReportData, clearReportData } from "../redux/reportsSlice";
 import { getFranchises } from "../redux/franchiseSlice";
 import { downloadReportFile } from "../services/reportService";
 
+// configuration for report types
 const REPORT_CATEGORIES = [
   { id: 'bookings', name: 'Booking Reports', icon: <Database size={16} />, options: [
-    { label: 'Daily Bookings', path: "/bookings/daily", fields: ['report_date', 'date_from', 'date_to', 'franchise_id'] },
-    { label: 'Customer Wise', path: "/bookings/customer-wise", fields: ['date_from', 'date_to', 'franchise_id'] },
-    { label: 'Service Performance', path: "/bookings/service-type", fields: ['date_from', 'date_to', 'franchise_id'] },
+    { label: 'Daily Bookings', path: "/bookings/daily", fields: ['report_date', 'date_from', 'date_to', 'franchise_id', 'payment_method'] },
+    { label: 'Customer Wise', path: "/bookings/customer-wise", fields: ['date_from', 'date_to', 'franchise_id', 'payment_method'] },
+    { label: 'Service Performance', path: "/bookings/service-type", fields: ['date_from', 'date_to', 'franchise_id', 'payment_method'] },
   ]},
   { id: 'delivery', name: 'Delivery Reports', icon: <Truck size={16} />, options: [
     { label: 'Delivery Status', path: "/delivery/status", fields: ['date_from', 'date_to', 'franchise_id'] },
@@ -64,7 +65,23 @@ const REPORT_CATEGORIES = [
   ]}
 ];
 
-export function Reports() {
+const PAYMENT_METHODS = ["COD", "Prepaid", "To Pay", "Credit"];
+
+// Helper component for Metric cards
+const SummaryCard = ({ label, value, icon }) => (
+  <Card className="bg-card-bg border-border-subtle">
+    <CardContent className="p-4 flex items-center gap-4">
+      <div className="p-2 bg-primary/10 text-primary rounded-lg">{icon}</div>
+      <div>
+        <p className="text-[9px] font-black text-text-muted uppercase tracking-widest truncate max-w-[150px]">{label}</p>
+        <p className="text-base font-black text-text-main">{typeof value === 'number' ? `₹${value.toLocaleString()}` : value}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+// Explicit Named Export
+export const Reports = () => {
   const dispatch = useDispatch();
   const { data, loading } = useSelector((state) => state.reports);
   const { items: franchises } = useSelector((state) => state.franchise);
@@ -75,6 +92,7 @@ export function Reports() {
     date_from: new Date().toISOString().split('T')[0],
     date_to: new Date().toISOString().split('T')[0],
     franchise_id: "",
+    payment_method: "", 
     year: new Date().getFullYear().toString(),
     limit: 10
   });
@@ -90,12 +108,15 @@ export function Reports() {
   const getSanitizedParams = (formatType = 'json') => {
     const params = { format: formatType };
     const activeFields = selectedReport.fields;
+    
     if (activeFields.includes('report_date')) params.report_date = filters.report_date;
     if (activeFields.includes('date_from')) params.date_from = filters.date_from;
     if (activeFields.includes('date_to')) params.date_to = filters.date_to;
     if (activeFields.includes('year')) params.year = filters.year;
     if (activeFields.includes('limit')) params.limit = filters.limit;
     if (activeFields.includes('franchise_id') && filters.franchise_id) params.franchise_id = filters.franchise_id;
+    if (activeFields.includes('payment_method') && filters.payment_method) params.payment_method = filters.payment_method;
+    
     return params;
   };
 
@@ -128,7 +149,6 @@ export function Reports() {
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
-      
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-text-main uppercase tracking-tight">Reports & Analytics</h1>
         <p className="text-xs md:text-sm text-primary mt-1 font-medium">
@@ -138,7 +158,7 @@ export function Reports() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+        {/* Sidebar Nav */}
         <div className="lg:col-span-3">
           <Card className="bg-card-bg border-border-subtle shadow-xl sticky top-6">
             <CardContent className="p-3 overflow-y-auto max-h-[80vh] custom-scrollbar">
@@ -164,6 +184,7 @@ export function Reports() {
           </Card>
         </div>
 
+        {/* Filters and Table */}
         <div className="lg:col-span-9 space-y-6">
           <Card className="bg-card-bg border-border-subtle shadow-xl">
             <CardContent className="p-6">
@@ -176,7 +197,6 @@ export function Reports() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 bg-dashboard-bg/30 p-6 rounded-2xl border border-border-subtle">
-                
                 {selectedReport.fields.includes('report_date') && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2"><Calendar size={14} className="text-text-muted"/><label className="text-[10px] font-black text-text-muted uppercase">Report Date</label></div>
@@ -203,22 +223,24 @@ export function Reports() {
 
                 {selectedReport.fields.includes('franchise_id') && (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2"><User size={14} className="text-text-muted"/><label className="text-[10px] font-black text-text-muted uppercase">Franchise ID</label></div>
-                    <select className="w-full bg-card-bg border-2 rounded-xl px-4 py-3 text-sm outline-none transition-all appearance-none cursor-pointer"
+                    <div className="flex items-center gap-2"><User size={14} className="text-text-muted"/><label className="text-[10px] font-black text-text-muted uppercase">Franchise</label></div>
+                    <select className="w-full bg-card-bg border-2 rounded-xl px-4 py-3 text-sm outline-none transition-all cursor-pointer"
                       style={{ borderColor: filters.franchise_id ? '#eab308' : '#262626' }}
                       value={filters.franchise_id} onChange={(e) => setFilters({...filters, franchise_id: e.target.value})}>
-                      <option value="">Optional: All Franchises</option>
+                      <option value="">All Franchises</option>
                       {franchises?.map(f => <option key={f.id} value={f.id}>{f.full_name}</option>)}
                     </select>
                   </div>
                 )}
 
-                {selectedReport.fields.includes('year') && (
+                {selectedReport.fields.includes('payment_method') && (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2"><ArrowUpRight size={14} className="text-text-muted"/><label className="text-[10px] font-black text-text-muted uppercase">Year</label></div>
-                    <select className="w-full bg-card-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main outline-none focus:ring-2 focus:ring-primary/50"
-                      value={filters.year} onChange={(e) => setFilters({...filters, year: e.target.value})}>
-                      {["2023", "2024", "2025", "2026"].map(y => <option key={y} value={y}>{y}</option>)}
+                    <div className="flex items-center gap-2"><CreditCard size={14} className="text-text-muted"/><label className="text-[10px] font-black text-text-muted uppercase">Payment Method</label></div>
+                    <select className="w-full bg-card-bg border-2 rounded-xl px-4 py-3 text-sm outline-none transition-all cursor-pointer"
+                      style={{ borderColor: filters.payment_method ? '#eab308' : '#262626' }}
+                      value={filters.payment_method} onChange={(e) => setFilters({...filters, payment_method: e.target.value})}>
+                      <option value="">All (Incl. Credit)</option>
+                      {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
                 )}
@@ -226,7 +248,7 @@ export function Reports() {
 
               <div className="mt-8 pt-8 border-t border-border-subtle flex flex-col xl:flex-row items-center gap-6">
                 <Button onClick={handleFetchPreview} disabled={loading} className="w-full xl:w-auto bg-primary text-black font-black h-14 px-10 rounded-xl uppercase tracking-widest text-xs">
-                  {loading ? <Loader2 className="animate-spin mr-3" size={18} /> : <Table className="mr-3" size={18} />} PREVIEW DATA STREAM
+                  {loading ? <Loader2 className="animate-spin mr-3" size={18} /> : <Table className="mr-3" size={18} />} PREVIEW DATA
                 </Button>
                 <div className="flex gap-2 w-full xl:w-auto xl:ml-auto">
                    <Button variant="outline" onClick={() => handleExport('excel')} className="flex-1 bg-card-bg border-border-subtle hover:bg-emerald-600/10 hover:border-emerald-600 h-14 rounded-xl group transition-all">
@@ -234,9 +256,6 @@ export function Reports() {
                   </Button>
                   <Button variant="outline" onClick={() => handleExport('pdf')} className="flex-1 bg-card-bg border-border-subtle hover:bg-rose-600/10 hover:border-rose-600 h-14 rounded-xl group transition-all">
                     <FileText size={18} className="mr-2 group-hover:text-rose-500" /> <span className="text-[10px] font-bold uppercase">PDF</span>
-                  </Button>
-                  <Button variant="outline" onClick={() => handleExport('csv')} className="flex-1 bg-card-bg border-border-subtle hover:bg-sky-600/10 hover:border-sky-600 h-14 rounded-xl group transition-all">
-                    <Download size={18} className="mr-2 group-hover:text-sky-500" /> <span className="text-[10px] font-bold uppercase">CSV</span>
                   </Button>
                 </div>
               </div>
@@ -261,24 +280,26 @@ export function Reports() {
                   <table className="w-full text-left">
                     <thead>
                       <tr className="sticky top-0 bg-[#171717] z-10">
-                        {tableHeaders.map((key) => <th key={key} className="px-6 py-5 text-[10px] font-black text-text-muted uppercase tracking-widest border-b border-border-subtle">{key.replace(/_/g, ' ')}</th>)}
+                        {tableHeaders.map((key) => <th key={key} className="px-6 py-5 text-[10px] font-black text-text-muted uppercase tracking-widest border-b border-border-subtle whitespace-nowrap">{key.replace(/_/g, ' ')}</th>)}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-subtle/30">
                       {reportItems.map((row, i) => (
                         <tr key={i} className="hover:bg-primary/[0.02] transition-colors">
-                          {Object.values(row).map((val, idx) => <td key={idx} className="px-6 py-4 text-xs text-text-main font-medium whitespace-nowrap">{val === null ? "-" : String(val)}</td>)}
-                        </tr>
-                      ))}
-                      {data?.totals && (
-                        <tr className="bg-primary/5 font-black border-t-2 border-primary/20">
-                          {tableHeaders.map((key, idx) => (
-                            <td key={idx} className="px-6 py-5 text-xs text-primary">
-                              {idx === 0 ? "TOTALS" : (data.totals[key] !== undefined ? data.totals[key].toLocaleString() : "")}
+                          {Object.values(row).map((val, idx) => (
+                            <td key={idx} className="px-6 py-4 text-xs text-text-main font-medium whitespace-nowrap">
+                              {tableHeaders[idx] === 'payment_method' ? (
+                                <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase ${
+                                  val === 'Credit' ? 'bg-orange-500/10 text-orange-500' : 
+                                  val === 'COD' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'
+                                }`}>
+                                  {val}
+                                </span>
+                              ) : (val === null ? "-" : String(val))}
                             </td>
                           ))}
                         </tr>
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -293,18 +314,4 @@ export function Reports() {
       </div>
     </div>
   );
-}
-
-function SummaryCard({ label, value, icon }) {
-  return (
-    <Card className="bg-card-bg border-border-subtle">
-      <CardContent className="p-4 flex items-center gap-4">
-        <div className="p-2 bg-primary/10 text-primary rounded-lg">{icon}</div>
-        <div>
-          <p className="text-[9px] font-black text-text-muted uppercase tracking-widest truncate max-w-[150px]">{label}</p>
-          <p className="text-base font-black text-text-main">{typeof value === 'number' ? `₹${value.toLocaleString()}` : value}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+};
