@@ -53,6 +53,10 @@ import TripSheetRegistry from "./pages/TripSheetRegistry";
 import TripSheet from "./pages/TripSheet";
 import VehicleRegistry from "./pages/VehicleRegistry";
 import DriverRegistry from "./pages/DriverRegistry";
+import OrderApprovalRegistry from "./pages/OrderApprovalRegistry";
+import DeliveryAssignmentRegistry from "./pages/DeliveryAssignmentRegistry";
+import DeliveryAssignmentForm from "./pages/DeliveryAssignmentForm";
+import DriverTracking from "./pages/DriverTracking";
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -350,6 +354,30 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+             <Route
+              path="trip/pickup-bookings"
+              element={
+                <PermissionRoute permission="tripsheet:update">
+                  <OrderApprovalRegistry/>
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="trip/delivery-bookings"
+              element={
+                <PermissionRoute permission="tripsheet:update">
+                  <DeliveryAssignmentRegistry/>
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="/dashboard/delivery/create"
+              element={
+                <PermissionRoute permission="tripsheet:update">
+                  <DeliveryAssignmentForm/>
+                </PermissionRoute>
+              }
+            />
             <Route
               path="trip/vehicles"
               element={
@@ -454,6 +482,16 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+
+            <Route 
+              path="driver-tracking"
+              element={
+                <PermissionRoute permission="drivers:view">
+                  <DriverTracking />
+                </PermissionRoute>
+              }
+            />
+            
 
             {/* Administrative */}
             <Route

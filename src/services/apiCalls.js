@@ -753,3 +753,80 @@ export const deleteVehicleApi = async (id) => {
   return res.data;
 };
 
+
+export const fetchPendingOrdersApi = async (params) => {
+  const res = await API.get("/franchise/user/orders/pending", { params });
+  return res.data;
+};
+
+export const fetchOrderApprovalDetailsApi = async (id) => {
+  const res = await API.get(`/franchise/user/orders/${id}`);
+  return res.data;
+};
+
+
+export const approveOrderActionApi = async (id, data) => {
+  const res = await API.post(`/franchise/user/orders/${id}/approve`, data);
+  return res.data;
+};
+
+export const rejectOrderActionApi = async (id) => {
+  const res = await API.post(`/franchise/user/orders/${id}/reject`);
+  return res.data;
+};
+
+
+export const createPickupAssignmentApi = async (data) => {
+  const res = await API.post("/pickup-assignments/create", data);
+  return res.data;
+};
+
+export const fetchPickupAssignmentsApi = async (params) => {
+  const res = await API.get("/pickup-assignments/list", { params });
+  return res.data;
+};
+
+export const fetchPickupAssignmentDetailsApi = async (id) => {
+  const res = await API.get(`/pickup-assignments/${id}/onebyone`);
+  return res.data;
+};
+
+export const fetchSearchDriversApi = async (search = "") => {
+  const res = await API.get("/operations/trip-sheet/drivers", {
+    params: { search }
+  });
+  return res.data;
+};
+
+export const fetchSearchVehiclesApi = async (search = "") => {
+  const res = await API.get("/operations/trip-sheet/vehicles", {
+    params: { search }
+  });
+  return res.data; 
+};
+
+export const fetchDeliveryAssignmentsApi = async (params) => {
+    const res = await API.get("/delivery-assignments/list", { params });
+    return res.data;
+};
+
+export const fetchDeliveryAssignmentDetailsApi = async (id) => {
+    const res = await API.get(`/delivery-assignments/${id}/onebyone`);
+    return res.data;
+};
+
+export const createDeliveryAssignmentApi = async (data) => {
+    const res = await API.post("/delivery-assignments/create", data);
+    return res.data;
+};
+
+export const fetchDriverLocationsApi = async () => {
+  const res = await API.get("/website/fleet/drivers/locations");
+  return res.data; 
+};
+
+export const fetchDriversListApi = async (params) => {
+  const res = await API.get("/website/fleet/drivers", { params });
+  return res.data; 
+};
+
