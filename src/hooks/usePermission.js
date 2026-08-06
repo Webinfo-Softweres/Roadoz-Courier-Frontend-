@@ -1,4 +1,4 @@
-  import { useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
   import { useSelector } from "react-redux";
   import { hasPermission, SUPER_ADMIN_ROLES } from "../lib/permissions";
 
@@ -41,23 +41,21 @@
         delete: can("consignees:delete"),
       },
 
-    
       drivers: {
-          view: can("drivers:view"),
-          create: can("drivers:create"),
-          update: can("drivers:update"),
-          delete: can("drivers:delete"),
-          approve: can("drivers:approve"),
-          reject: can("drivers:reject"),
-        },
-      vehicles: {
-          view: can("vehicle:view"),
-          create: can("vehicle:create"),
-          update: can("vehicle:update"),
-          delete: can("vehicle:delete"),
+        view: can("drivers:view"),
+        create: can("drivers:create"),
+        update: can("drivers:update"),
+        delete: can("drivers:delete"),
+        approve: can("drivers:approve"),
+        reject: can("drivers:reject"),
+      },
 
-        },
-      
+      vehicles: {
+        view: can("vehicle:view"),
+        create: can("vehicle:create"),
+        update: can("vehicle:update"),
+        delete: can("vehicle:delete"),
+      },
 
       franchises: {
         create: can("franchises:create"),
@@ -83,6 +81,14 @@
         delete: can("orders:delete"),
         edit: can("orders:edit"),
         view: can("orders:view"),
+      },
+
+      // ADDED PARCEL PERMISSIONS
+      parcel: {
+        create: can("parcel:create"),
+        edit: can("parcel:edit"),
+        view: can("parcel:view"),
+        delete: can("parcel:delete"),
       },
 
       permissionsModule: {
@@ -166,7 +172,5 @@
         edit: can("webconfig:edit"),
         view: can("webconfig:view"),
       },
-
-      
     };
   }

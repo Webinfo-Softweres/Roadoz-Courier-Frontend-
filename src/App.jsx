@@ -335,23 +335,23 @@ export default function App() {
             />
 
             <Route path="parcel-orders" element={
-              <PermissionRoute permission="parcel_orders:view">
+              <PermissionRoute permission="parcel:view">
                 <ProcessingParcel />
               </PermissionRoute>
             } />
             <Route path="parcel-orders/create" element={
-              <PermissionRoute permission="parcel_orders:create">
+              <PermissionRoute permission="parcel:create">
                 <CreateParcel />
               </PermissionRoute>
             } />  
 <Route path="parcel-orders/edit/:id" element={
-              <PermissionRoute permission="parcel_orders:edit">
+              <PermissionRoute permission="parcel:edit">
                 <CreateParcel />
               </PermissionRoute>
             } />
 
             <Route path="parcel-orders/invoice/:id" element={
-              <PermissionRoute permission="parcel_orders:view">
+              <PermissionRoute permission="parcel:view">
                 <ParcelInvoice />
               </PermissionRoute>
             } />
