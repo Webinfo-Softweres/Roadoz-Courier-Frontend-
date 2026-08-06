@@ -57,6 +57,10 @@ import OrderApprovalRegistry from "./pages/OrderApprovalRegistry";
 import DeliveryAssignmentRegistry from "./pages/DeliveryAssignmentRegistry";
 import DeliveryAssignmentForm from "./pages/DeliveryAssignmentForm";
 import DriverTracking from "./pages/DriverTracking";
+import ProcessingParcel from "./pages/ProcessingParcel";
+import CreateParcel from "./pages/CreateParcel";
+import ParcelInvoice from "./lib/ParcelInvoice";
+
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -329,6 +333,29 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+
+            <Route path="parcel-orders" element={
+              <PermissionRoute permission="parcel_orders:view">
+                <ProcessingParcel />
+              </PermissionRoute>
+            } />
+            <Route path="parcel-orders/create" element={
+              <PermissionRoute permission="parcel_orders:create">
+                <CreateParcel />
+              </PermissionRoute>
+            } />  
+<Route path="parcel-orders/edit/:id" element={
+              <PermissionRoute permission="parcel_orders:edit">
+                <CreateParcel />
+              </PermissionRoute>
+            } />
+
+            <Route path="parcel-orders/invoice/:id" element={
+              <PermissionRoute permission="parcel_orders:view">
+                <ParcelInvoice />
+              </PermissionRoute>
+            } />
+
             {/* Trip & Fleet Management */}
             <Route
               path="trip/trip-sheet"

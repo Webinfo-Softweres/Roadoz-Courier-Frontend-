@@ -216,6 +216,20 @@ export function Sidebar({ isOpen, setIsOpen }) {
           Dashboard
         </NavLink>
 
+       {/* NEW PARCEL CREATION */}
+        {hasPerm("orders:create") && (
+          <NavLink to={`${base}/parcel-orders/create`} icon={<ShoppingCart size={20} />} hideText={!isOpen}>
+            Create Parcel
+          </NavLink>
+        )}
+
+        {/* PROCESSING PARCEL LIST */}
+        {hasPerm("orders:view") && (
+          <NavLink to={`${base}/parcel-orders`} icon={<Package size={20} />} hideText={!isOpen}>
+            Processing Parcel
+          </NavLink>
+        )}
+
         {hasPerm("orders:create") && (
           <NavLink to={`${base}/new-orders`} icon={<ShoppingCart size={20} />} hideText={!isOpen}>
             New Orders
