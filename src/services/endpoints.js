@@ -34,6 +34,9 @@ export const ENDPOINTS = {
   RATE_CALCULATOR: "/rate-calculator/calculate",
   ANALYTICS_DASHBOARD: "/analytics/dashboard",
   REPORTS: {
+     PARCEL: {
+       DAILY: "/reports/parcel-orders",
+    },
     BOOKINGS: {
       DAILY: "/reports/bookings/daily",
       CUSTOMER_WISE: "/reports/bookings/customer-wise",
