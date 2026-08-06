@@ -830,3 +830,29 @@ export const fetchDriversListApi = async (params) => {
   return res.data; 
 };
 
+export const fetchParcelOrdersApi = async (params) => {
+  const res = await API.get(ENDPOINTS.PARCEL_ORDERS.LIST, { params });
+  return res.data;
+};
+
+export const createParcelOrderApi = async (data) => {
+  const res = await API.post(ENDPOINTS.PARCEL_ORDERS.CREATE, data);
+  return res.data;
+};
+
+export const updateParcelOrderApi = async (id, data) => {
+  const res = await API.put(ENDPOINTS.PARCEL_ORDERS.UPDATE(id), data);
+  return res.data;
+};
+
+export const deleteParcelOrderApi = async (id) => {
+  // Uses /parcel-orders/delete/${id} as per your ENDPOINTS object
+  const res = await API.delete(ENDPOINTS.PARCEL_ORDERS.DELETE(id));
+  return res.data;
+};
+
+
+export const getParcelOrderDetailApi = async (id) => {
+  const res = await API.get(ENDPOINTS.PARCEL_ORDERS.GET_ONE(id));
+  return res.data;
+};

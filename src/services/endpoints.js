@@ -107,6 +107,14 @@ export const ENDPOINTS = {
     SCAN: (barcode) => `/operations/trip-sheet/scan/${barcode}`,
     DETAIL: (id) => `/operations/trip-sheet/${id}`,
     DELETE: (id) => `/operations/trip-sheet/${id}`,
-}
+},
+PARCEL_ORDERS: {
+    BASE: "/parcel-orders",
+    LIST: "/parcel-orders/list",
+    CREATE: "/parcel-orders/create",
+    UPDATE: (id) => `/parcel-orders/update/${id}`,
+    DELETE: (id) => `/parcel-orders/delete/${id}`,
+    GET_ONE: (id) => `/parcel-orders/getonebyone/${id}`,
+},
 
 };
