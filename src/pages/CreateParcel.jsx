@@ -13,7 +13,8 @@ import {
   Phone,
   Truck,
   IndianRupee,
-  Save
+  Save,
+  Plus
 } from 'lucide-react';
 import { 
   createParcelOrderApi, 
@@ -40,6 +41,7 @@ const CreateParcel = () => {
     order_value: 0,
     weight_kg: 0,
     freight_charge: 0,
+    extra_charge: 0, // Added extra_charge
     product_name: "",
     qty: 1,
     gst_number: "",
@@ -52,6 +54,15 @@ const CreateParcel = () => {
   const inputClass = "bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-main focus:outline-none focus:border-primary transition-all w-full placeholder:text-text-muted/30 focus:ring-1 focus:ring-primary/30";
   const labelClass = "text-[10px] font-bold uppercase text-text-muted ml-1 mb-1 block tracking-widest";
   const optionClass = "bg-[#1a1a1a] text-text-main"; 
+
+  // --- Automatic Calculation of Order Value ---
+  useEffect(() => {
+    const calculatedValue = Number(formData.qty || 0) * Number(formData.freight_charge || 0);
+    setFormData(prev => ({
+      ...prev,
+      order_value: calculatedValue
+    }));
+  }, [formData.qty, formData.freight_charge]);
 
   // --- Fetch Data for Edit Mode ---
   useEffect(() => {
@@ -81,6 +92,7 @@ const CreateParcel = () => {
             order_value: data.order_value || 0,
             weight_kg: data.weight_kg || 0,
             freight_charge: data.freight_charge || 0,
+            extra_charge: data.extra_charge || 0, // Added for edit
             product_name: data.product_name || "",
             qty: data.qty || 1,
             gst_number: data.gst_number || "",
@@ -122,14 +134,14 @@ const CreateParcel = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Logic Updated: Total Freight is now exactly what the user enters (No GST addition)
-      const finalAmount = Number(formData.freight_charge);
+      // Total Freight = Freight Charge + Extra Charge
+      const totalFreight = Number(formData.freight_charge) + Number(formData.extra_charge || 0);
       
       const payload = {
         ...formData,
-        freight_gst: 0, // Set to 0 as per your requirement
-        total_freight: finalAmount, // Total is now exactly equal to entered charge
-        prepaid_amount: formData.payment_method === 'Prepaid' ? finalAmount : 0,
+        freight_gst: 0,
+        total_freight: totalFreight, 
+        prepaid_amount: formData.payment_method === 'Prepaid' ? totalFreight : 0,
         cod_amount: formData.payment_method === 'COD' ? formData.order_value : 0,
       };
 
@@ -248,7 +260,7 @@ const CreateParcel = () => {
             <CreditCard size={18} className="text-blue-500" />
             <h2 className="text-xs font-bold uppercase tracking-widest text-text-main">Pricing & Shipping</h2>
           </div>
-          <CardContent className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+          <CardContent className="p-6 grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-1">
               <label className={labelClass}>Payment Type</label>
               <select className={inputClass} value={formData.payment_method} onChange={e => setFormData({...formData, payment_method: e.target.value})}>
@@ -266,12 +278,19 @@ const CreateParcel = () => {
               </div>
             </div>
             <div className="space-y-1">
+              <label className={labelClass}>Extra Charge (₹)</label>
+              <div className="relative">
+                <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted/50" size={14} />
+                <input type="number" value={formData.extra_charge} className={cn(inputClass, "pl-9 font-mono")} onChange={e => setFormData({...formData, extra_charge: e.target.value})} />
+              </div>
+            </div>
+            <div className="space-y-1">
               <label className={labelClass}>Weight (KG)</label>
               <input type="number" step="0.01" required value={formData.weight_kg} className={cn(inputClass, "font-mono")} onChange={e => setFormData({...formData, weight_kg: e.target.value})} />
             </div>
             <div className="space-y-1">
               <label className={labelClass}>Order Value (₹)</label>
-              <input type="number" value={formData.order_value} className={cn(inputClass, "font-mono")} onChange={e => setFormData({...formData, order_value: e.target.value})} />
+              <input type="number" readOnly value={formData.order_value} className={cn(inputClass, "font-mono bg-dashboard-bg/50 cursor-not-allowed")} title="Auto-calculated (Qty x Freight)" />
             </div>
           </CardContent>
         </Card>

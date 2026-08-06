@@ -8,7 +8,7 @@ import {
   FileSpreadsheet, FileText, BarChart3, Truck, 
   Settings, Wallet, Landmark, ShieldCheck, 
   Briefcase, Database, TrendingUp, User, Calendar,
-  ArrowUpRight, CreditCard
+  ArrowUpRight, CreditCard, Package // Added Package icon
 } from "lucide-react";
 
 import { fetchReportData, clearReportData } from "../redux/reportsSlice";
@@ -17,6 +17,10 @@ import { downloadReportFile } from "../services/reportService";
 
 // configuration for report types
 const REPORT_CATEGORIES = [
+  // ADDED PARCEL CATEGORY
+  { id: 'parcel', name: 'Parcel Reports', icon: <Package size={16} />, options: [
+    { label: 'Parcel Daily Bookings', path: "/parcel-orders", fields: ['date_from', 'date_to', 'franchise_id', 'payment_method'] },
+  ]},
   { id: 'bookings', name: 'Booking Reports', icon: <Database size={16} />, options: [
     { label: 'Daily Bookings', path: "/bookings/daily", fields: ['report_date', 'date_from', 'date_to', 'franchise_id', 'payment_method'] },
     { label: 'Customer Wise', path: "/bookings/customer-wise", fields: ['date_from', 'date_to', 'franchise_id', 'payment_method'] },
@@ -74,7 +78,9 @@ const SummaryCard = ({ label, value, icon }) => (
       <div className="p-2 bg-primary/10 text-primary rounded-lg">{icon}</div>
       <div>
         <p className="text-[9px] font-black text-text-muted uppercase tracking-widest truncate max-w-[150px]">{label}</p>
-        <p className="text-base font-black text-text-main">{typeof value === 'number' ? `₹${value.toLocaleString()}` : value}</p>
+        <p className="text-base font-black text-text-main">
+          {typeof value === 'number' ? `₹${value.toLocaleString()}` : (value || 0)}
+        </p>
       </div>
     </CardContent>
   </Card>
@@ -130,6 +136,17 @@ export const Reports = () => {
 
   const summaryMetrics = useMemo(() => {
     if (!data || Array.isArray(data)) return [];
+
+    // HANDLE PARCEL TOTALS STRUCTURE
+    if (data.totals) {
+      return Object.entries(data.totals).map(([key, value]) => ({
+        label: key.replace(/_/g, ' '),
+        value: value,
+        icon: key.includes('freight') || key.includes('charge') ? <Wallet size={16}/> : <TrendingUp size={16}/>
+      }));
+    }
+
+    // HANDLE STANDARD FLAT TOTALS STRUCTURE
     return Object.entries(data)
       .filter(([key]) => key.startsWith('opening_') || key.startsWith('total_'))
       .map(([key, value]) => ({
@@ -189,7 +206,9 @@ export const Reports = () => {
           <Card className="bg-card-bg border-border-subtle shadow-xl">
             <CardContent className="p-6">
               <div className="flex items-center gap-4 mb-8 border-b border-border-subtle pb-6">
-                <div className="p-3 bg-primary/10 text-primary rounded-xl"><Filter size={24} /></div>
+                <div className="p-3 bg-primary/10 text-primary rounded-xl">
+                    {REPORT_CATEGORIES.find(c => c.options.some(o => o.label === selectedReport.label))?.icon || <Filter size={24} />}
+                </div>
                 <div>
                   <h2 className="text-xl font-black text-text-main uppercase">{selectedReport.label}</h2>
                   <p className="text-[10px] text-text-muted font-bold mt-1 uppercase tracking-widest">Parameter Configuration</p>
@@ -239,7 +258,7 @@ export const Reports = () => {
                     <select className="w-full bg-card-bg border-2 rounded-xl px-4 py-3 text-sm outline-none transition-all cursor-pointer"
                       style={{ borderColor: filters.payment_method ? '#eab308' : '#262626' }}
                       value={filters.payment_method} onChange={(e) => setFilters({...filters, payment_method: e.target.value})}>
-                      <option value="">All (Incl. Credit)</option>
+                      <option value="">All Methods</option>
                       {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
@@ -300,6 +319,17 @@ export const Reports = () => {
                           ))}
                         </tr>
                       ))}
+                      
+                      {/* ADDED FOOTER TOTALS FOR PARCEL REPORTS */}
+                      {data?.totals && (
+                        <tr className="bg-primary/5 font-black border-t-2 border-primary/20">
+                          {tableHeaders.map((key, idx) => (
+                            <td key={idx} className="px-6 py-5 text-xs text-primary">
+                              {idx === 0 ? "TOTALS" : (data.totals[key] !== undefined ? data.totals[key].toLocaleString() : "")}
+                            </td>
+                          ))}
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

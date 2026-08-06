@@ -60,7 +60,8 @@ import DriverTracking from "./pages/DriverTracking";
 import ProcessingParcel from "./pages/ProcessingParcel";
 import CreateParcel from "./pages/CreateParcel";
 import ParcelInvoice from "./lib/ParcelInvoice";
-
+import TripsheetRegistry from "./pages/TripsheetRegistryParcel.jsx";
+import generateTripSheetPrint from "./lib/PrintTripSheetParcel.js"; 
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -353,6 +354,18 @@ export default function App() {
             <Route path="parcel-orders/invoice/:id" element={
               <PermissionRoute permission="parcel:view">
                 <ParcelInvoice />
+              </PermissionRoute>
+            } />
+
+<Route path="parcel-orders/tripsheet" element={
+              <PermissionRoute permission="tripsheet:view">
+                <TripsheetRegistry />
+              </PermissionRoute>
+            } />  
+
+            <Route path="parcel-orders/tripsheet/print/:id" element={
+              <PermissionRoute permission="tripsheet:view">
+                <generateTripSheetPrint />
               </PermissionRoute>
             } />
 

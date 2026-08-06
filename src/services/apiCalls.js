@@ -856,3 +856,31 @@ export const getParcelOrderDetailApi = async (id) => {
   const res = await API.get(ENDPOINTS.PARCEL_ORDERS.GET_ONE(id));
   return res.data;
 };
+
+export const createParcelTripsheetApi = async (data) => {
+  const res = await API.post("/parcel-tripsheets/create", data);
+  return res.data;
+};
+
+
+// Add these to your apiCalls.js
+export const fetchParcelTripsheetsApi = async (params) => {
+  const res = await API.get("/parcel-tripsheets/list", { params });
+  return res.data;
+};
+
+export const getParcelTripsheetDetailApi = async (id) => {
+  const res = await API.get(`/parcel-tripsheets/onebyone/${id}`);
+  return res.data;
+};
+
+export const updateParcelTripsheetApi = async (id, data) => {
+  const res = await API.put(`/parcel-tripsheets/update/${id}`, data);
+  return res.data;
+};
+
+export const deleteParcelTripsheetApi = async (id) => {
+  const res = await API.delete(`/parcel-tripsheets/delete/${id}`);
+  return res.data;
+};
+
