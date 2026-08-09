@@ -18,9 +18,13 @@ function ChangeView({ center }) {
   const map = useMap();
   useEffect(() => {
     if (center && center[0] && center[1]) {
-      map.setView(center, map.getZoom(), { animate: true });
+      // use flyTo for a smooth "tracking" animation, or setView for instant update
+      map.flyTo(center, map.getZoom(), {
+        animate: true,
+        duration: 1.5
+      });
     }
-  }, [center]);
+  }, [center, map]);
   return null;
 }
 
@@ -49,11 +53,11 @@ export default function DriverTracking() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDriver, setSelectedDriver] = useState(null);
-  const [currentAddress, setCurrentAddress] = useState(""); // Stores fetched address
+  const [currentAddress, setCurrentAddress] = useState(""); 
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [mapCenter, setMapCenter] = useState([10.8505, 76.2711]); 
 
-  // 1. REVERSE GEOCODING FUNCTION
+  // 1. REVERSE GEOCODING
   const fetchAddress = async (lat, lng) => {
     setLoadingAddress(true);
     try {
@@ -63,7 +67,6 @@ export default function DriverTracking() {
       const data = await response.json();
       setCurrentAddress(data.display_name || "Address not found");
     } catch (error) {
-      console.error("Reverse Geocoding Error:", error);
       setCurrentAddress("Error fetching address");
     } finally {
       setLoadingAddress(false);
@@ -80,17 +83,21 @@ export default function DriverTracking() {
     }
   }, []);
 
-  // 3. API Polling
+  // 3. API Polling and Auto-Sync
   const loadTrackingData = async () => {
     try {
       const data = await fetchDriverLocationsApi();
       const driversArray = Array.isArray(data) ? data : [];
       setDrivers(driversArray);
       
-      // If a driver is currently selected, refresh their details but keep the selection
+      // CRITICAL FIX: If a driver is selected, update their reference and move the map
       if (selectedDriver) {
         const updated = driversArray.find(d => d.driver.id === selectedDriver.driver.id);
-        if (updated) setSelectedDriver(updated);
+        if (updated && updated.location?.lat) {
+          setSelectedDriver(updated);
+          // This ensures the map "follows" the vehicle every 10s
+          setMapCenter([updated.location.lat, updated.location.lng]);
+        }
       }
     } catch (error) {
       console.error("Fetch error:", error);
@@ -103,16 +110,16 @@ export default function DriverTracking() {
     loadTrackingData();
     const interval = setInterval(loadTrackingData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedDriver?.driver?.id]); // Re-subscribe if selection changes
 
-  // 4. Trigger Address Fetch when driver is selected
+  // 4. Trigger Address Fetch only when the ID changes or movement is significant
   useEffect(() => {
     if (selectedDriver?.location?.lat) {
       fetchAddress(selectedDriver.location.lat, selectedDriver.location.lng);
     } else {
       setCurrentAddress("");
     }
-  }, [selectedDriver?.driver?.id]); // Only re-fetch if driver ID changes
+  }, [selectedDriver?.driver?.id, selectedDriver?.location?.lat]); 
 
   const filteredDrivers = useMemo(() => {
     return drivers.filter(item => {
@@ -123,9 +130,9 @@ export default function DriverTracking() {
 
   if (loading && drivers.length === 0) {
     return (
-      <div className="h-screen bg-[#0B0F1A] flex flex-col items-center justify-center text-white font-sans">
+      <div className="h-screen bg-[#0B0F1A] flex flex-col items-center justify-center text-white">
         <Loader2 className="animate-spin mb-4 text-blue-500" size={40} />
-        <p className="text-slate-400 animate-pulse">Mapping current fleet positions...</p>
+        <p className="text-slate-400 animate-pulse">Establishing GPS connection...</p>
       </div>
     );
   }
@@ -159,7 +166,7 @@ export default function DriverTracking() {
                 <input 
                   type="text" value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Filter drivers..." 
+                  placeholder="Search active drivers..." 
                   className="w-full bg-[#0B0F1A] border border-slate-800 rounded-xl py-2.5 pl-9 pr-3 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500" 
                 />
              </div>
@@ -175,18 +182,18 @@ export default function DriverTracking() {
                     setMapCenter([item.location.lat, item.location.lng]); 
                   }
                 }}
-                className={`p-3 rounded-xl cursor-pointer flex items-center justify-between transition-all ${selectedDriver?.driver?.id === item.driver.id ? 'bg-blue-600' : 'hover:bg-slate-800/40'} ${!item.location?.lat ? 'opacity-30' : ''}`}
+                className={`p-3 rounded-xl cursor-pointer flex items-center justify-between transition-all ${selectedDriver?.driver?.id === item.driver.id ? 'bg-blue-600 shadow-lg shadow-blue-900/20' : 'hover:bg-slate-800/40'} ${!item.location?.lat ? 'opacity-30' : ''}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-white font-bold border border-slate-700 uppercase">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold border uppercase ${selectedDriver?.driver?.id === item.driver.id ? 'bg-blue-500 border-blue-400' : 'bg-slate-800 border-slate-700'}`}>
                     {item.driver.first_name?.[0]}
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-white">{item.driver.first_name} {item.driver.last_name}</h4>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">{item.vehicle?.plate_number || "No Plate"}</p>
+                    <h4 className={`text-xs font-bold ${selectedDriver?.driver?.id === item.driver.id ? 'text-white' : 'text-slate-200'}`}>{item.driver.first_name} {item.driver.last_name}</h4>
+                    <p className={`text-[10px] font-bold uppercase ${selectedDriver?.driver?.id === item.driver.id ? 'text-blue-100' : 'text-slate-500'}`}>{item.vehicle?.plate_number || "No Plate"}</p>
                   </div>
                 </div>
-                {item.location?.lat && <Navigation size={12} className="rotate-45 text-blue-400" />}
+                {item.location?.lat && <Navigation size={12} className={`rotate-45 ${selectedDriver?.driver?.id === item.driver.id ? 'text-white' : 'text-blue-400'}`} />}
               </div>
             ))}
           </div>
@@ -194,7 +201,7 @@ export default function DriverTracking() {
 
         {/* MAP */}
         <div className="flex-1 relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-[#0F172A]">
-          <MapContainer center={mapCenter} zoom={13} className="h-full w-full z-0" zoomControl={false}>
+          <MapContainer center={mapCenter} zoom={15} className="h-full w-full z-0" zoomControl={false}>
             <TileLayer url="https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png" />
             
             <ChangeView center={mapCenter} />
@@ -204,82 +211,74 @@ export default function DriverTracking() {
                 key={item.driver.id} 
                 position={[item.location.lat, item.location.lng]} 
                 icon={createCustomIcon(item.driver.online)}
-                eventHandlers={{ click: () => setSelectedDriver(item) }}
+                eventHandlers={{
+                    click: () => {
+                        setSelectedDriver(item);
+                        setMapCenter([item.location.lat, item.location.lng]);
+                    }
+                }}
               >
                 <Popup className="custom-popup">
                   <div className="p-1 min-w-[180px]">
                     <h3 className="font-bold text-slate-900 text-sm">{item.driver.first_name} {item.driver.last_name}</h3>
                     <p className="text-[10px] text-blue-600 font-black mb-2">{item.vehicle?.plate_number}</p>
-                    
-                    <div className="space-y-2 border-t border-slate-100 pt-2">
-                       <div className="flex items-start gap-1">
-                          <MapPin size={10} className="text-slate-400 mt-0.5 shrink-0" />
-                          <p className="text-[9px] text-slate-700 leading-tight">
-                            {selectedDriver?.driver?.id === item.driver.id ? (loadingAddress ? "Loading address..." : currentAddress) : "Click for address"}
-                          </p>
-                       </div>
-                       <div className="flex justify-between text-[10px] bg-slate-50 p-1.5 rounded">
-                          <span className="text-slate-500 font-bold uppercase">Speed</span>
-                          <span className="text-slate-900 font-black">{item.location.speed?.toFixed(1) || 0} KM/H</span>
-                       </div>
+                    <div className="flex justify-between text-[10px] bg-slate-100 p-1.5 rounded">
+                        <span className="text-slate-500 font-bold uppercase">Live Speed</span>
+                        <span className="text-slate-900 font-black">{item.location.speed?.toFixed(1) || 0} KM/H</span>
                     </div>
                   </div>
                 </Popup>
               </Marker>
             ))}
 
-            {/* CONTROLS */}
-            <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
-              <button className="bg-[#111827] p-2 rounded-lg text-white border border-slate-800 hover:bg-slate-800"><Plus size={18}/></button>
-              <button className="bg-[#111827] p-2 rounded-lg text-white border border-slate-800 hover:bg-slate-800"><Minus size={18}/></button>
-            </div>
-
-            {/* ADDRESS DETAIL CARD */}
+            {/* FLOATING ADDRESS CARD */}
             {selectedDriver && (
-              <div className="absolute bottom-6 left-6 w-80 bg-[#161B26] rounded-2xl shadow-2xl p-5 z-[1000] border border-slate-800 animate-in slide-in-from-bottom-4">
-                  <button onClick={() => setSelectedDriver(null)} className="absolute top-4 right-4 text-slate-600 hover:text-white"><X size={16}/></button>
+              <div className="absolute bottom-6 left-6 w-80 bg-[#161B26] rounded-2xl shadow-2xl p-5 z-[1000] border border-slate-800 animate-in slide-in-from-bottom-4 transition-all">
+                  <button onClick={() => setSelectedDriver(null)} className="absolute top-4 right-4 text-slate-600 hover:text-white transition-colors"><X size={16}/></button>
                   
                   <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xl font-black uppercase">
+                      <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xl font-black uppercase shadow-inner">
                         {selectedDriver.driver.first_name?.[0]}
                       </div>
                       <div>
                           <p className="text-sm font-black text-white">{selectedDriver.driver.first_name} {selectedDriver.driver.last_name}</p>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{selectedDriver.vehicle?.plate_number}</p>
+                          <div className="flex items-center gap-2">
+                             <span className={`w-2 h-2 rounded-full ${selectedDriver.driver.online ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{selectedDriver.vehicle?.plate_number}</p>
+                          </div>
                       </div>
                   </div>
 
-                  {/* ADDRESS BOX */}
                   <div className="bg-[#0B0F1A] p-3 rounded-xl border border-slate-800/50 mb-4">
                      <div className="flex items-center gap-2 text-slate-500 mb-1.5">
-                        <MapPin size={12}/>
-                        <span className="text-[9px] font-bold uppercase tracking-tighter">Current Location Address</span>
+                        <MapPin size={12} className="text-blue-500"/>
+                        <span className="text-[9px] font-bold uppercase tracking-tighter">Current Location</span>
                      </div>
                      {loadingAddress ? (
                          <div className="flex items-center gap-2 text-blue-400">
                              <Loader2 size={10} className="animate-spin" />
-                             <span className="text-[10px]">Reverse geocoding coordinates...</span>
+                             <span className="text-[10px]">Updating address...</span>
                          </div>
                      ) : (
                         <p className="text-[11px] leading-relaxed text-slate-200 font-medium italic">
-                            {currentAddress || "Select a driver to view address"}
+                            {currentAddress || "Locating..."}
                         </p>
                      )}
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2 pt-2">
+                  <div className="grid grid-cols-2 gap-2">
                       <div className="bg-[#0B0F1A]/50 p-2 rounded-lg border border-slate-800/30">
-                        <p className="text-[8px] text-slate-500 font-bold uppercase">Latitude</p>
-                        <p className="text-[10px] font-mono text-white">{selectedDriver.location.lat.toFixed(6)}</p>
+                        <p className="text-[8px] text-slate-500 font-bold uppercase">Speed</p>
+                        <p className="text-xs font-black text-blue-400">{selectedDriver.location.speed?.toFixed(1) || 0} <span className="text-[8px]">km/h</span></p>
                       </div>
                       <div className="bg-[#0B0F1A]/50 p-2 rounded-lg border border-slate-800/30">
-                        <p className="text-[8px] text-slate-500 font-bold uppercase">Longitude</p>
-                        <p className="text-[10px] font-mono text-white">{selectedDriver.location.lng.toFixed(6)}</p>
+                        <p className="text-[8px] text-slate-500 font-bold uppercase">Heading</p>
+                        <p className="text-xs font-black text-white">{selectedDriver.location.heading || 0}°</p>
                       </div>
                   </div>
 
-                  <p className="mt-4 text-[9px] text-center text-slate-600 font-bold uppercase">
-                    Last Signal: {new Date(selectedDriver.location.last_updated).toLocaleTimeString()}
+                  <p className="mt-4 text-[9px] text-center text-slate-600 font-bold uppercase flex items-center justify-center gap-1">
+                    <Clock size={8}/> Last Updated: {new Date(selectedDriver.location.last_updated).toLocaleTimeString()}
                   </p>
               </div>
             )}
@@ -288,10 +287,11 @@ export default function DriverTracking() {
       </div>
 
       <style>{`
-        .custom-popup .leaflet-popup-content-wrapper { background: #ffffff; border-radius: 12px; padding: 4px; }
+        .custom-popup .leaflet-popup-content-wrapper { background: #ffffff; border-radius: 12px; padding: 4px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4); }
         .custom-popup .leaflet-popup-tip { background: #ffffff; }
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .leaflet-container { background: #0F172A !important; }
       `}</style>
     </div>
   );
